@@ -57,6 +57,7 @@ import {
   getOrderContentEditPolicy,
 } from '../../shared/utils/flower-order-edit-policy';
 import { BRAND_NAME } from '../../shared/config/brand';
+import OrderAttachmentField from './OrderAttachmentField';
 import OrderAttachmentPreview from './OrderAttachmentPreview';
 
 type ProductQuantities = Record<string, string>;

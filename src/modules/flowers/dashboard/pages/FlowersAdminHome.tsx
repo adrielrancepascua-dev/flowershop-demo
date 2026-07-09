@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from '../../../../lib/supabase/client';
 import { useFlowerAuth } from '../../../../lib/auth/FlowerAuthContext';
 import { getFlowerStorageMode, shouldUseFlowerSupabase } from '../../../../services/flowers/storage-mode';
 import FlowerPageHeader from '../../shared/components/FlowerPageHeader';
+import FlowerStatCard from '../../shared/components/FlowerStatCard';
 import { BRAND_NAME, formatBranchListLabel } from '../../shared/config/brand';
 
 function getSystemModeLabel(): string {
