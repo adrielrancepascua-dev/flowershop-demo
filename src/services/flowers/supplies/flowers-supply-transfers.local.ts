@@ -5,6 +5,10 @@ import type {
 } from '../../../modules/flowers/shared/types/flower-supply-transfer';
 import { FLOWER_BRANCHES_MOCK } from '../../../modules/flowers/shared/data/flowers.mock';
 import {
+  buildFlowerSupplyTransfersPitchSeed,
+  FLOWER_PITCH_SEED_VERSION,
+} from '../../../modules/flowers/shared/data/flowers-pitch-seed';
+import {
   buildSupplyTransferLine,
   computeFlowerLiability,
   computeSupplyTransferTotalLiability,
@@ -14,6 +18,7 @@ import { listFlowerStemsLocal } from '../products/flowers-products.local';
 import { transferFlowerInventoryLocal } from '../inventory/flowers-inventory.local';
 
 const STORAGE_KEY = 'bloom_branch_demo_supply_transfers_v1';
+const SEEDED_KEY = `bloom_branch_demo_supply_transfers_seeded_${FLOWER_PITCH_SEED_VERSION}`;
 
 function getBranchName(branchId: string): string {
   return FLOWER_BRANCHES_MOCK.find((branch) => branch.id === branchId)?.name ?? branchId;
@@ -21,11 +26,20 @@ function getBranchName(branchId: string): string {
 
 function readTransfers(): FlowerSupplyTransfer[] {
   if (typeof window === 'undefined') {
-    return [];
+    return buildFlowerSupplyTransfersPitchSeed();
   }
 
   try {
+    const seeded = window.localStorage.getItem(SEEDED_KEY);
     const raw = window.localStorage.getItem(STORAGE_KEY);
+
+    if (!seeded) {
+      const seed = buildFlowerSupplyTransfersPitchSeed();
+      writeTransfers(seed);
+      window.localStorage.setItem(SEEDED_KEY, 'true');
+      return seed;
+    }
+
     if (!raw) {
       return [];
     }
@@ -33,7 +47,7 @@ function readTransfers(): FlowerSupplyTransfer[] {
     const parsed = JSON.parse(raw) as FlowerSupplyTransfer[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return [];
+    return buildFlowerSupplyTransfersPitchSeed();
   }
 }
 

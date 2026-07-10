@@ -4,6 +4,7 @@ import { FLOWER_DEMO_USERS } from '../../modules/flowers/shared/data/flowers.moc
 import { mapFlowerProfileRow } from '../../services/flowers/team/flowers-team.shared';
 import { getFlowerStorageMode, shouldUseFlowerSupabase } from '../../services/flowers/storage-mode';
 import { getSupabaseClient, isSupabaseConfigured } from '../supabase/client';
+import { ensureFlowerDemoPitchSeedLocal } from '../../services/flowers/ensure-demo-pitch-seed';
 
 const AUTH_STORAGE_KEY = 'bloom_branch_demo_auth_v1';
 const TEAM_STORAGE_KEY = 'bloom_branch_demo_team_v1';
@@ -110,6 +111,7 @@ async function signInLocal(email: string, password: string): Promise<FlowerAuthS
   };
 
   writeLocalSession(session);
+  await ensureFlowerDemoPitchSeedLocal();
   return session;
 }
 
@@ -242,6 +244,10 @@ export async function requireSupabaseAuthSession(): Promise<void> {
 
 export async function restoreFlowerSession(): Promise<FlowerAuthSession | null> {
   if (!shouldUseSupabaseAuth()) {
+    if (isFlowerDemoMode()) {
+      await ensureFlowerDemoPitchSeedLocal();
+    }
+
     const stored = readLocalSession();
     if (!stored) {
       return null;

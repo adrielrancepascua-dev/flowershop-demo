@@ -3,7 +3,6 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useFlowerAuth } from '../../../lib/auth/FlowerAuthContext';
 import FlowerMobileNav, { FlowerDesktopSidebarHeader } from '../../flowers/shared/components/FlowerMobileNav';
 import FlowerBrandLogo from '../../flowers/shared/components/FlowerBrandLogo';
-import DemoModeBanner from '../../flowers/shared/components/DemoModeBanner';
 import { applyFlowerPrintSettings, readFlowerPrintSettings } from '../../flowers/shared/utils/flower-print-settings';
 
 const FLOWER_LINKS = [
@@ -68,7 +67,6 @@ export default function DashboardLayout() {
         </aside>
 
         <main className="flower-card min-h-[60vh] min-w-0 overflow-x-hidden p-4 pb-24 sm:p-6 lg:mb-0 lg:pb-6">
-          <DemoModeBanner />
           <Outlet />
         </main>
       </div>

@@ -825,7 +825,7 @@ function emptyForm(
     greeting_card: '',
     special_instructions: '',
     downpayment: 0,
-    payment_mode: 'cash',
+    payment_mode: '' as FlowerPaymentMode,
     payment_reference: '',
     total_amount: 0,
     notes: '',
@@ -956,7 +956,17 @@ export default function FlowerOrderFormModal({
     setStatusMessage('');
     setErrorMessage('');
     setReadyPhotoMessage('');
-    setBalancePaymentMode('');
+    // For advance orders with GCash/bank DP, suggest the same mode for the remaining balance.
+    // Never auto-suggest cash — that caused silent misposts.
+    const normalizedDpMode =
+      order.downpayment > 0 && order.payment_mode
+        ? normalizeFlowerPaymentMode(order.payment_mode, order.branch_id, order.branch_name)
+        : '';
+    const suggestedBalanceMode =
+      order.balance > 0 && !order.balance_paid && normalizedDpMode && normalizedDpMode !== 'cash'
+        ? normalizedDpMode
+        : '';
+    setBalancePaymentMode(suggestedBalanceMode);
     setBalancePaymentReference('');
     setBalancePaidMessage('');
   }
@@ -1034,11 +1044,16 @@ export default function FlowerOrderFormModal({
       return;
     }
 
+    // Never silently fall back to cash — clear invalid modes so staff must re-select.
+    if (!form.payment_mode) {
+      return;
+    }
+
     const branchName =
       branches.find((branch) => branch.id === form.branch_id)?.name ?? form.branch_id;
     const modes = getFlowerPaymentModesForBranch(form.branch_id, branchName);
     if (!modes.includes(form.payment_mode)) {
-      setForm((previous) => ({ ...previous, payment_mode: modes[0] }));
+      setForm((previous) => ({ ...previous, payment_mode: '' as FlowerPaymentMode }));
     }
   }, [open, form.branch_id, form.payment_mode, isViewMode, branches]);
 
@@ -1386,6 +1401,11 @@ export default function FlowerOrderFormModal({
 
     const requiresProof = downpayment > 0;
 
+    if (requiresProof && !form.payment_mode) {
+      showValidationError('Please choose a downpayment payment mode (Cash, GCash, or bank).');
+      return null;
+    }
+
     if (requiresProof && !form.payment_reference.trim()) {
       showValidationError('Reference # is required when downpayment is greater than 0.');
       return null;
@@ -1410,7 +1430,15 @@ export default function FlowerOrderFormModal({
     }
 
     setErrorMessage('');
-    return { ...form, wrapper_color, downpayment, total_amount, items };
+    return {
+      ...form,
+      // When there is no DP yet, store a neutral placeholder; reports ignore DP mode at ₱0.
+      payment_mode: requiresProof ? form.payment_mode : form.payment_mode || 'cash',
+      wrapper_color,
+      downpayment,
+      total_amount,
+      items,
+    };
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -1650,6 +1678,15 @@ export default function FlowerOrderFormModal({
                     {PRICE_FORMATTER.format(existingOrder!.balance)} remaining — collect before
                     marking picked up or delivered.
                   </p>
+                  {existingOrder!.downpayment > 0 && existingOrder!.payment_mode ? (
+                    <p className="mt-1 text-xs text-amber-900/80">
+                      Downpayment was via{' '}
+                      {formatFlowerPaymentModeLabel(existingOrder!.payment_mode)}
+                      {existingOrder!.payment_mode !== 'cash'
+                        ? ' — balance mode starts the same; change it if they paid differently.'
+                        : ' — choose how the remaining balance was paid.'}
+                    </p>
+                  ) : null}
                   {onBalancePaid ? (
                     <div className="mt-3 flex flex-col gap-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -2162,7 +2199,9 @@ export default function FlowerOrderFormModal({
                 }
                 className={`flower-input mt-1.5 ${hasDownpayment ? '' : 'cursor-not-allowed bg-brand-beige/40 text-brand-brown/50'}`}
                 disabled={!hasDownpayment}
+                required={hasDownpayment}
               >
+                <option value="">Select payment mode</option>
                 {branchPaymentModes.map((mode) => (
                   <option key={mode} value={mode}>
                     {FLOWER_PAYMENT_MODE_LABELS[mode]}

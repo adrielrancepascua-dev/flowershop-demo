@@ -1,6 +1,7 @@
 import {
-  FLOWER_ORDERS_SEED,
+  getFlowerOrdersSeed,
 } from '../../../modules/flowers/shared/data/flowers.mock';
+import { FLOWER_PITCH_SEED_VERSION } from '../../../modules/flowers/shared/data/flowers-pitch-seed';
 import type {
   CreateFlowerOrderInput,
   FlowerOrder,
@@ -31,7 +32,7 @@ import { validateOrderInspoPhotoWithProducts } from './flowers-order-validation'
 import { listFlowerStemsLocal } from '../products/flowers-products.local';
 
 const ORDERS_STORAGE_KEY = 'bloom_branch_demo_flower_orders_v2';
-const ORDERS_SEEDED_KEY = 'bloom_branch_demo_flower_orders_seeded_v2';
+const ORDERS_SEEDED_KEY = `bloom_branch_demo_flower_orders_seeded_${FLOWER_PITCH_SEED_VERSION}`;
 
 function cloneOrders(orders: FlowerOrder[]): FlowerOrder[] {
   return orders.map((order) => ({
@@ -42,7 +43,7 @@ function cloneOrders(orders: FlowerOrder[]): FlowerOrder[] {
 
 function readOrdersFromStorage(): FlowerOrder[] {
   if (typeof window === 'undefined') {
-    return cloneOrders(FLOWER_ORDERS_SEED);
+    return cloneOrders(getFlowerOrdersSeed());
   }
 
   try {
@@ -50,9 +51,10 @@ function readOrdersFromStorage(): FlowerOrder[] {
     const raw = window.localStorage.getItem(ORDERS_STORAGE_KEY);
 
     if (!seeded) {
-      writeOrdersToStorage(cloneOrders(FLOWER_ORDERS_SEED));
+      const seed = cloneOrders(getFlowerOrdersSeed());
+      writeOrdersToStorage(seed);
       window.localStorage.setItem(ORDERS_SEEDED_KEY, 'true');
-      return cloneOrders(FLOWER_ORDERS_SEED);
+      return cloneOrders(seed);
     }
 
     if (!raw) {
@@ -82,7 +84,7 @@ function readOrdersFromStorage(): FlowerOrder[] {
       balance_payment_reference: order.balance_payment_reference ?? '',
     }));
   } catch {
-    return cloneOrders(FLOWER_ORDERS_SEED);
+    return cloneOrders(getFlowerOrdersSeed());
   }
 }
 
@@ -423,11 +425,25 @@ export async function markFlowerOrderBalancePaidLocal(
     throw new Error('This order has no remaining balance to collect.');
   }
 
+  if (!balancePaymentMode) {
+    throw new Error('Please choose a balance payment mode.');
+  }
+
+  const normalizedMode = normalizeFlowerPaymentMode(
+    balancePaymentMode,
+    current.branch_id,
+    current.branch_name,
+  );
+
+  if (normalizedMode !== 'cash' && !balancePaymentReference.trim()) {
+    throw new Error('Reference # is required for non-cash balance payments.');
+  }
+
   const updated: FlowerOrder = {
     ...current,
     balance: 0,
     balance_paid: true,
-    balance_payment_mode: balancePaymentMode,
+    balance_payment_mode: normalizedMode,
     balance_payment_reference: balancePaymentReference.trim(),
     items: current.items.map((item) => ({ ...item })),
   };

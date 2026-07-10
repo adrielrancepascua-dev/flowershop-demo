@@ -9,18 +9,37 @@ import type {
 } from '../../../modules/flowers/shared/types/flower-expense';
 import { normalizeFlowerExpensePaymentMode } from '../../../modules/flowers/shared/types/flower-expense';
 import { FLOWER_BRANCHES_MOCK } from '../../../modules/flowers/shared/data/flowers.mock';
+import {
+  buildFlowerStaffExpensesPitchSeed,
+  buildFlowerSupplierCostsPitchSeed,
+  FLOWER_PITCH_SEED_VERSION,
+} from '../../../modules/flowers/shared/data/flowers-pitch-seed';
 import { lookupFlowerProductNameLocal } from '../products/flowers-products.local';
 
 const EXPENSES_STORAGE_KEY = 'bloom_branch_demo_staff_expenses_v1';
+const EXPENSES_SEEDED_KEY = `bloom_branch_demo_staff_expenses_seeded_${FLOWER_PITCH_SEED_VERSION}`;
 const SUPPLIER_COSTS_STORAGE_KEY = 'bloom_branch_demo_supplier_costs_v1';
+const SUPPLIER_COSTS_SEEDED_KEY = `bloom_branch_demo_supplier_costs_seeded_${FLOWER_PITCH_SEED_VERSION}`;
 
 function readExpenses(): FlowerStaffExpense[] {
   if (typeof window === 'undefined') {
-    return [];
+    return buildFlowerStaffExpensesPitchSeed();
   }
 
   try {
+    const seeded = window.localStorage.getItem(EXPENSES_SEEDED_KEY);
     const raw = window.localStorage.getItem(EXPENSES_STORAGE_KEY);
+
+    if (!seeded) {
+      const seed = buildFlowerStaffExpensesPitchSeed();
+      writeExpenses(seed);
+      window.localStorage.setItem(EXPENSES_SEEDED_KEY, 'true');
+      return seed.map((expense) => ({
+        ...expense,
+        payment_mode: normalizeFlowerExpensePaymentMode(expense.payment_mode),
+      }));
+    }
+
     if (!raw) {
       return [];
     }
@@ -35,7 +54,7 @@ function readExpenses(): FlowerStaffExpense[] {
       payment_mode: normalizeFlowerExpensePaymentMode(expense.payment_mode),
     }));
   } catch {
-    return [];
+    return buildFlowerStaffExpensesPitchSeed();
   }
 }
 
@@ -49,11 +68,20 @@ function writeExpenses(expenses: FlowerStaffExpense[]) {
 
 function readSupplierCosts(): FlowerSupplierCost[] {
   if (typeof window === 'undefined') {
-    return [];
+    return buildFlowerSupplierCostsPitchSeed();
   }
 
   try {
+    const seeded = window.localStorage.getItem(SUPPLIER_COSTS_SEEDED_KEY);
     const raw = window.localStorage.getItem(SUPPLIER_COSTS_STORAGE_KEY);
+
+    if (!seeded) {
+      const seed = buildFlowerSupplierCostsPitchSeed();
+      writeSupplierCosts(seed);
+      window.localStorage.setItem(SUPPLIER_COSTS_SEEDED_KEY, 'true');
+      return seed;
+    }
+
     if (!raw) {
       return [];
     }
@@ -61,7 +89,7 @@ function readSupplierCosts(): FlowerSupplierCost[] {
     const parsed = JSON.parse(raw) as FlowerSupplierCost[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return [];
+    return buildFlowerSupplierCostsPitchSeed();
   }
 }
 

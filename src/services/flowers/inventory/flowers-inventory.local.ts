@@ -2,6 +2,11 @@ import {
   FLOWER_BRANCHES_MOCK,
   FLOWER_INVENTORY_SEED,
 } from '../../../modules/flowers/shared/data/flowers.mock';
+import {
+  buildFlowerMovementsPitchSeed,
+  buildFlowerTransferRequestsPitchSeed,
+  FLOWER_PITCH_SEED_VERSION,
+} from '../../../modules/flowers/shared/data/flowers-pitch-seed';
 import type {
   AdjustFlowerInventoryInput,
   CreateFlowerTransferRequestInput,
@@ -28,7 +33,9 @@ import { formatInventoryOrderDeductNote, formatInventoryOrderVoidNote } from '..
 
 const INVENTORY_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_v2';
 const MOVEMENTS_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_movements_v2';
+const MOVEMENTS_SEEDED_KEY = `bloom_branch_demo_flower_inventory_movements_seeded_${FLOWER_PITCH_SEED_VERSION}`;
 const TRANSFER_REQUESTS_STORAGE_KEY = 'bloom_branch_demo_flower_transfer_requests_v2';
+const TRANSFER_REQUESTS_SEEDED_KEY = `bloom_branch_demo_flower_transfer_requests_seeded_${FLOWER_PITCH_SEED_VERSION}`;
 
 type StockMap = Record<string, Record<string, number>>;
 
@@ -74,11 +81,20 @@ function writeStockToStorage(stock: StockMap) {
 
 function readMovementsFromStorage(): FlowerInventoryMovementRow[] {
   if (typeof window === 'undefined') {
-    return [];
+    return buildFlowerMovementsPitchSeed();
   }
 
   try {
+    const seeded = window.localStorage.getItem(MOVEMENTS_SEEDED_KEY);
     const raw = window.localStorage.getItem(MOVEMENTS_STORAGE_KEY);
+
+    if (!seeded) {
+      const seed = buildFlowerMovementsPitchSeed();
+      writeMovementsToStorage(seed);
+      window.localStorage.setItem(MOVEMENTS_SEEDED_KEY, 'true');
+      return seed;
+    }
+
     if (!raw) {
       return [];
     }
@@ -86,7 +102,7 @@ function readMovementsFromStorage(): FlowerInventoryMovementRow[] {
     const parsed = JSON.parse(raw) as FlowerInventoryMovementRow[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return [];
+    return buildFlowerMovementsPitchSeed();
   }
 }
 
@@ -366,11 +382,22 @@ function normalizeTransferRequest(raw: FlowerTransferRequest & {
 
 function readTransferRequestsFromStorage(): FlowerTransferRequest[] {
   if (typeof window === 'undefined') {
-    return [];
+    return buildFlowerTransferRequestsPitchSeed();
   }
 
   try {
+    const seeded = window.localStorage.getItem(TRANSFER_REQUESTS_SEEDED_KEY);
     const raw = window.localStorage.getItem(TRANSFER_REQUESTS_STORAGE_KEY);
+
+    if (!seeded) {
+      const seed = buildFlowerTransferRequestsPitchSeed().map((entry) =>
+        normalizeTransferRequest(entry),
+      );
+      writeTransferRequestsToStorage(seed);
+      window.localStorage.setItem(TRANSFER_REQUESTS_SEEDED_KEY, 'true');
+      return seed;
+    }
+
     if (!raw) {
       const legacyRaw = window.localStorage.getItem('bloom_branch_demo_flower_transfer_requests_v1');
       if (!legacyRaw) {
@@ -406,7 +433,7 @@ function readTransferRequestsFromStorage(): FlowerTransferRequest[] {
     >;
     return Array.isArray(parsed) ? parsed.map((entry) => normalizeTransferRequest(entry)) : [];
   } catch {
-    return [];
+    return buildFlowerTransferRequestsPitchSeed();
   }
 }
 

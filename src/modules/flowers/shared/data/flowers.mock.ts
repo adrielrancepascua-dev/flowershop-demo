@@ -3,6 +3,7 @@ import type { FlowerBranchOption } from '../types/flower-inventory';
 import type { FlowerOrder } from '../types/flower-order';
 import type { FlowerUser } from '../types/auth';
 import { DEMO_BRANCHES, STAFF_EMAIL_DOMAIN } from '../config/brand';
+import { buildFlowerOrdersPitchSeed } from './flowers-pitch-seed';
 
 export type FlowerStemCatalogItem = FlowerProduct;
 
@@ -104,6 +105,12 @@ export const FLOWER_DEMO_USERS: Array<
   },
 ];
 
+/** Built at seed time with relative Manila dates so the pitch always looks current. */
+export function getFlowerOrdersSeed(): FlowerOrder[] {
+  return buildFlowerOrdersPitchSeed();
+}
+
+/** @deprecated Prefer getFlowerOrdersSeed() — kept for SSR/static imports. */
 export const FLOWER_ORDERS_SEED: FlowerOrder[] = [];
 
 /** @deprecated use FLOWER_STEMS_MOCK */
