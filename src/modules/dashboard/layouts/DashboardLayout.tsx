@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useFlowerAuth } from '../../../lib/auth/FlowerAuthContext';
+import { formatFlowerRoleLabel } from '../../flowers/shared/types/auth';
 import FlowerMobileNav, { FlowerDesktopSidebarHeader } from '../../flowers/shared/components/FlowerMobileNav';
 import FlowerBrandLogo from '../../flowers/shared/components/FlowerBrandLogo';
 import { applyFlowerPrintSettings, readFlowerPrintSettings } from '../../flowers/shared/utils/flower-print-settings';
@@ -9,6 +10,7 @@ const FLOWER_LINKS = [
   { label: 'Home', to: '/dashboard/flowers' },
   { label: 'Orders', to: '/dashboard/flowers/orders' },
   { label: 'Inventory', to: '/dashboard/flowers/inventory' },
+  { label: 'Daily count', to: '/dashboard/flowers/daily-count' },
   { label: 'Expenses', to: '/dashboard/flowers/expenses' },
   { label: 'Reports', to: '/dashboard/flowers/reports' },
   { label: 'Supplies', to: '/dashboard/flowers/supplies', adminOnly: true },
@@ -32,7 +34,8 @@ export default function DashboardLayout() {
           <div className="flex shrink-0 items-center gap-2">
             <span className="hidden rounded-full bg-brand-beige/80 px-3 py-1 text-xs font-medium text-brand-brown sm:inline">
               {user?.display_name}
-              {user?.branch_name ? ` · ${user.branch_name}` : ''} · {isAdmin ? 'Admin' : 'Staff'}
+              {user?.branch_name ? ` · ${user.branch_name}` : ''} ·{' '}
+              {formatFlowerRoleLabel(user?.role ?? 'staff')}
             </span>
             <button type="button" onClick={() => void signOut()} className="flower-btn-secondary px-3 py-1.5 text-xs">
               Sign out

@@ -31,7 +31,7 @@ import {
 import { normalizeFlowerProductKind } from '../../../modules/flowers/shared/utils/flower-product-kind';
 import { formatInventoryOrderDeductNote, formatInventoryOrderVoidNote } from '../../../modules/flowers/shared/utils/flower-format';
 
-const INVENTORY_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_v2';
+const INVENTORY_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_v3';
 const MOVEMENTS_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_movements_v2';
 const MOVEMENTS_SEEDED_KEY = `bloom_branch_demo_flower_inventory_movements_seeded_${FLOWER_PITCH_SEED_VERSION}`;
 const TRANSFER_REQUESTS_STORAGE_KEY = 'bloom_branch_demo_flower_transfer_requests_v2';
@@ -251,6 +251,7 @@ export async function adjustFlowerInventoryLocal(input: AdjustFlowerInventoryInp
     delta,
     movementType: input.movementType,
     note: input.note?.trim() ?? '',
+    allowNegative: true,
   });
 }
 
@@ -260,13 +261,14 @@ export async function deductFlowerInventoryForOrderLocal(input: {
   quantity: number;
   orderId: string;
   receiver: string;
+  note?: string;
 }): Promise<void> {
   await applyStockChange({
     branchId: input.branchId,
     productId: input.productId,
     delta: -input.quantity,
     movementType: 'order_deduct',
-    note: formatInventoryOrderDeductNote(input.orderId, input.receiver),
+    note: input.note ?? formatInventoryOrderDeductNote(input.orderId, input.receiver),
     allowNegative: true,
   });
 }
@@ -277,13 +279,14 @@ export async function restoreFlowerInventoryForOrderLocal(input: {
   quantity: number;
   orderId: string;
   receiver: string;
+  note?: string;
 }): Promise<void> {
   await applyStockChange({
     branchId: input.branchId,
     productId: input.productId,
     delta: input.quantity,
     movementType: 'stock_in',
-    note: formatInventoryOrderVoidNote(input.orderId, input.receiver),
+    note: input.note ?? formatInventoryOrderVoidNote(input.orderId, input.receiver),
   });
 }
 
@@ -614,6 +617,7 @@ export async function confirmFlowerTransferRequestLocal(
       delta: item.quantity,
       movementType: 'transfer_in',
       note: `Transfer received from ${request.from_branch_name}`,
+      allowNegative: true,
     });
   }
 
@@ -708,6 +712,7 @@ export async function updateFlowerTransferRequestBillingLocal(
     ...requests[index],
     total_cost: totalCost,
     cost_paid: Boolean(input.cost_paid),
+    note: input.note?.trim() ?? '',
   };
 
   requests[index] = updated;

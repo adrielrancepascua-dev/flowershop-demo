@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { ShieldCheck, UserRound } from 'lucide-react';
+import { ShieldCheck, UserRound, UserCog } from 'lucide-react';
 import { useFlowerAuth } from '../../../../lib/auth/FlowerAuthContext';
 import { isFlowerDemoMode } from '../../../../app/app-mode';
 import { FLOWER_DEMO_USERS } from '../../shared/data/flowers.mock';
@@ -19,6 +19,10 @@ export default function FlowerLoginPage() {
 
   const demoAdmin = useMemo(
     () => FLOWER_DEMO_USERS.find((demoUser) => demoUser.role === 'admin'),
+    [],
+  );
+  const demoCoAdmin = useMemo(
+    () => FLOWER_DEMO_USERS.find((demoUser) => demoUser.role === 'co_admin'),
     [],
   );
   const demoStaff = useMemo(
@@ -54,8 +58,9 @@ export default function FlowerLoginPage() {
     await completeSignIn(email, password);
   }
 
-  async function handleQuickLogin(role: 'admin' | 'staff') {
-    const demoUser = role === 'admin' ? demoAdmin : demoStaff;
+  async function handleQuickLogin(role: 'admin' | 'co_admin' | 'staff') {
+    const demoUser =
+      role === 'admin' ? demoAdmin : role === 'co_admin' ? demoCoAdmin : demoStaff;
     if (!demoUser) {
       setError('Demo account not found.');
       return;
@@ -74,7 +79,7 @@ export default function FlowerLoginPage() {
         {isDemoMode ? (
           <div className="space-y-3">
             <p className="text-sm text-brand-brown/75">
-              Demo mode — pick a role to sign in instantly.
+              Live demo of a multi-branch inventory, sales, and staff system. Pick a role to sign in. Catalog SKUs are placeholders — we map yours when you go live.
             </p>
 
             <button
@@ -90,6 +95,23 @@ export default function FlowerLoginPage() {
                 <span className="block font-semibold">Admin</span>
                 <span className="block text-xs font-normal text-white/80">
                   {demoAdmin?.display_name ?? 'Owner Admin'} · full access
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isSubmitting || !demoCoAdmin}
+              onClick={() => void handleQuickLogin('co_admin')}
+              className="flower-btn-secondary flex w-full items-center gap-3 border-brand-muted/60 px-4 py-3 text-left"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-beige/80 text-brand-brown">
+                <UserCog className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block font-semibold text-brand-dark">Co-admin</span>
+                <span className="block text-xs font-normal text-brand-brown/70">
+                  {demoCoAdmin?.display_name ?? 'Co-admin'} · reports without owner metrics
                 </span>
               </span>
             </button>

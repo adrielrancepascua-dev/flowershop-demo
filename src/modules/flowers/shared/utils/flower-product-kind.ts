@@ -3,8 +3,8 @@ export const FLOWER_PRODUCT_KINDS = ['flower', 'misc'] as const;
 export type FlowerProductKind = (typeof FLOWER_PRODUCT_KINDS)[number];
 
 export const FLOWER_PRODUCT_KIND_LABELS: Record<FlowerProductKind, string> = {
-  flower: 'Flowers',
-  misc: 'Miscellaneous',
+  flower: 'Catalog',
+  misc: 'Supplies',
 };
 
 export function normalizeFlowerProductKind(value: string | null | undefined): FlowerProductKind {

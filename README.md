@@ -1,19 +1,22 @@
-# Bloom & Branch — Multi-Branch Flower Shop Demo
+# Plaza Retail — Multi-branch operations demo
 
-Generic **flowershop back office** demo for pitching to multi-branch flower shops.  
-This repo is separate from any client production deployment.
+Generic **multi-branch inventory, sales, and staff** demo for pitching to shops with 2+ branches — hardware, pharmacy, uniforms, feed, appliances, groceries, bakeries, flower shops, and similar.  
+This repo is separate from any client production deployment. Sample SKUs are placeholders; the catalog is configured per prospect.
+
+Landing/marketing pages are out of scope for now — this is the live back office only.
 
 ## What this demo includes
 
 - **Orders** — calendar + list, pickup/delivery/walk-in, photos, downpayment/balance, status workflow
-- **Inventory** — per-branch stock, admin adjust, inter-branch transfers, movement history
-- **Products** — flower catalog (type/color) + misc items (wrappers, supplies)
-- **Payments** — cash, GCash, branch-specific banks; balance collection with explicit mode selection
+- **Inventory** — per-branch stock, admin adjust, inter-branch transfers, packing slips, movement history
+- **Products** — catalog types + variants, plus supplies
+- **Payments** — cash, GCash, Maya Terminal, branch-specific banks; explicit balance collection
 - **Expenses** — staff expenses (cash/GCash) + admin supplier costs
-- **Reports** — daily/monthly sales, COGS, cash on hand, printable sales reports
+- **Daily count** — staff submit actuals; reports stay locked until submitted
+- **Reports** — daily/monthly sales, COGS (owner-only), cash on hand, printable sales reports
 - **Supplies** — hub-branch supply vouchers + branch liability tracking
-- **Team** — admin staff creation + onboarding (Supabase path)
-- **Print** — thermal order slips + 4×6 coupon presets
+- **Team** — admin / co-admin / staff roles + onboarding
+- **Print** — thermal order slips + transfer packing slips
 
 ## Demo branches (fictional)
 
@@ -36,9 +39,10 @@ Set `VITE_APP_MODE=flower_demo` in `.env` (see `.env.example`).
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | `admin@demo.bloombranch.app` | `admin1234` |
-| Staff (North) | `staff1@demo.bloombranch.app` | `staff1234` |
-| Staff (Midtown) | `staff2@demo.bloombranch.app` | `staff1234` |
+| Admin | `admin@demo.plazaretail.app` | `admin1234` |
+| Co-admin | `coadmin@demo.plazaretail.app` | `coadmin1234` |
+| Staff (North) | `staff1@demo.plazaretail.app` | `staff1234` |
+| Staff (Midtown) | `staff2@demo.plazaretail.app` | `staff1234` |
 
 Data is stored in browser `localStorage` (prefix `bloom_branch_demo_*`).
 
@@ -72,16 +76,16 @@ Connect your own Supabase project:
 
 ## Pitch script (5 minutes)
 
-1. Log in as Admin → show home dashboard.
-2. Orders → create order with downpayment + balance due.
-3. Mark balance paid → must choose payment mode explicitly.
-4. Inventory → show branch stock + transfer request.
-5. Reports → show sales by payment + cash on hand.
-6. Mention: same UI runs on demo storage or Supabase for production.
+1. Log in as Admin — this is the **engine**, not a flower app. Catalog SKUs are stand-ins.
+2. Orders — create order with downpayment + balance due; mark balance paid with an explicit mode.
+3. Inventory — stock by branch + transfer request + packing slip.
+4. Daily count — submit actuals (reports stay locked until this is done).
+5. Reports — sales by payment + cash on hand; mention co-admin cannot see COGS/net.
+6. “Tell me your catalog — we configure SKUs, branches, and payment modes for your shop.”
 
 ## Repo relationship
 
 - **This repo:** generic demo / sales pitch (`flowershop-demo`)
 - **Client repo:** separate production instance with client branding and data
 
-Do not mix client-specific branding or production credentials into this demo repo.
+Do not mix client-specific branding, product lists, or production credentials into this demo repo.

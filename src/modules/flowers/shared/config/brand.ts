@@ -1,7 +1,7 @@
 /** Generic demo branding — override via Vite env for white-label pitches. */
-export const BRAND_NAME = import.meta.env.VITE_BRAND_NAME || 'Bloom & Branch';
+export const BRAND_NAME = import.meta.env.VITE_BRAND_NAME || 'Plaza Retail';
 export const BRAND_TAGLINE =
-  import.meta.env.VITE_BRAND_TAGLINE || 'Multi-branch flower shop operations';
+  import.meta.env.VITE_BRAND_TAGLINE || 'Multi-branch inventory, sales, and staff operations';
 export const LOGO_SRC = import.meta.env.VITE_BRAND_LOGO_SRC || '/demo-logo.svg';
 export const CONTACT_PHONE = import.meta.env.VITE_CONTACT_PHONE || '(555) 010-0200';
 
@@ -16,7 +16,7 @@ export const DEMO_BRANCHES = [
 
 /** Domain used when admins create staff login emails (no @ symbol). */
 export const STAFF_EMAIL_DOMAIN =
-  import.meta.env.VITE_STAFF_EMAIL_DOMAIN || 'demo.bloombranch.app';
+  import.meta.env.VITE_STAFF_EMAIL_DOMAIN || 'demo.plazaretail.app';
 
 export function formatStaffEmailExample(localPart = 'maria.santos'): string {
   return `${localPart}@${STAFF_EMAIL_DOMAIN}`;

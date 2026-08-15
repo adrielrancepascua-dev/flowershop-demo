@@ -127,7 +127,7 @@ export default function FlowerProductsPage() {
       <FlowerPageHeader
         label="Catalog"
         title="Products"
-        description="Flowers for daily orders and a separate miscellaneous list for wrappers, chocolates, and other shop supplies."
+        description="Sellable SKUs for daily orders, plus a supplies list for packaging and shop extras. Names here are placeholders — swap them for your catalog."
       />
 
       <div className="mt-4 inline-flex rounded-xl border border-brand-muted/50 bg-white p-1">
@@ -144,7 +144,7 @@ export default function FlowerProductsPage() {
       </div>
 
       <p className="mt-2 text-sm text-brand-brown/70">
-        Active {catalogTab === 'flower' ? 'flowers' : 'misc items'}: {activeCount} / {visibleProducts.length}
+        Active {catalogTab === 'flower' ? 'catalog SKUs' : 'supplies'}: {activeCount} / {visibleProducts.length}
       </p>
 
       <RequireFlowerAdmin>
@@ -175,7 +175,7 @@ export default function FlowerProductsPage() {
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
             placeholder={
-              catalogTab === 'flower' ? 'Flower type (e.g. Local Rose, Lily)' : 'Item name (e.g. Kraft wrapper, Chocolate)'
+              catalogTab === 'flower' ? 'Product type (e.g. Staple, Core)' : 'Item name (e.g. Tape, Box)'
             }
             className="flower-input"
           />

@@ -958,16 +958,30 @@ export default function FlowerOrderFormModal({
     setReadyPhotoMessage('');
     // For advance orders with GCash/bank DP, suggest the same mode for the remaining balance.
     // Never auto-suggest cash — that caused silent misposts.
-    const normalizedDpMode =
-      order.downpayment > 0 && order.payment_mode
-        ? normalizeFlowerPaymentMode(order.payment_mode, order.branch_id, order.branch_name)
-        : '';
-    const suggestedBalanceMode =
-      order.balance > 0 && !order.balance_paid && normalizedDpMode && normalizedDpMode !== 'cash'
-        ? normalizedDpMode
-        : '';
-    setBalancePaymentMode(suggestedBalanceMode);
-    setBalancePaymentReference('');
+    // If balance is already paid, prefill so staff can correct a wrong mode (e.g. GCash → Cash).
+    if (order.balance_paid) {
+      setBalancePaymentMode(
+        order.balance_payment_mode
+          ? normalizeFlowerPaymentMode(
+              order.balance_payment_mode,
+              order.branch_id,
+              order.branch_name,
+            )
+          : '',
+      );
+      setBalancePaymentReference(order.balance_payment_reference?.trim() ?? '');
+    } else {
+      const normalizedDpMode =
+        order.downpayment > 0 && order.payment_mode
+          ? normalizeFlowerPaymentMode(order.payment_mode, order.branch_id, order.branch_name)
+          : '';
+      const suggestedBalanceMode =
+        order.balance > 0 && normalizedDpMode && normalizedDpMode !== 'cash'
+          ? normalizedDpMode
+          : '';
+      setBalancePaymentMode(suggestedBalanceMode);
+      setBalancePaymentReference('');
+    }
     setBalancePaidMessage('');
   }
 
@@ -1420,7 +1434,7 @@ export default function FlowerOrderFormModal({
       orderRequiresInspoPhoto(items, flowerProductIds, form.claim_mode) &&
       !form.photo_inspo_data_url.trim()
     ) {
-      showValidationError('Photo of order / inspo is required for flower orders.');
+      showValidationError('Reference photo is required for catalog orders.');
       return null;
     }
 
@@ -1479,16 +1493,27 @@ export default function FlowerOrderFormModal({
       return;
     }
 
+    const isCorrection = existingOrder.balance_paid;
     setIsMarkingBalancePaid(true);
     setBalancePaidMessage('');
 
     try {
-      await onBalancePaid(existingOrder.id, balancePaymentMode, balancePaymentReference.trim());
-      setBalancePaidMessage('Balance marked as paid.');
+      await onBalancePaid(
+        existingOrder.id,
+        balancePaymentMode,
+        balancePaymentMode === 'cash' ? '' : balancePaymentReference.trim(),
+      );
+      setBalancePaidMessage(
+        isCorrection ? 'Balance payment mode updated.' : 'Balance marked as paid.',
+      );
       setStatusMessage('');
     } catch (error) {
       setBalancePaidMessage(
-        error instanceof Error ? error.message : 'Could not mark balance as paid.',
+        error instanceof Error
+          ? error.message
+          : isCorrection
+            ? 'Could not update balance payment mode.'
+            : 'Could not mark balance as paid.',
       );
     } finally {
       setIsMarkingBalancePaid(false);
@@ -1570,7 +1595,7 @@ export default function FlowerOrderFormModal({
               {existingOrder ? (isViewMode ? 'View order' : 'Edit order') : 'New order'}
             </p>
             <h2 className="font-serif text-lg font-semibold text-brand-dark">
-              {BRAND_NAME} — Daily Order
+              {BRAND_NAME} — Order
             </h2>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 hover:bg-brand-beige/60">
@@ -1747,16 +1772,88 @@ export default function FlowerOrderFormModal({
               ) : null}
 
               {showBalancePaidBanner ? (
-                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                  Balance paid
-                  {existingOrder!.balance_payment_mode
-                    ? ` via ${formatFlowerPaymentModeLabel(existingOrder!.balance_payment_mode)}`
-                    : ''}
-                  {existingOrder!.balance_payment_reference?.trim()
-                    ? ` — ref ${existingOrder!.balance_payment_reference.trim()}`
-                    : ''}
-                  .
-                </p>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-semibold text-emerald-950">Balance paid</p>
+                  <p className="mt-1 text-sm text-emerald-900">
+                    Currently recorded as{' '}
+                    {existingOrder!.balance_payment_mode
+                      ? formatFlowerPaymentModeLabel(existingOrder!.balance_payment_mode)
+                      : 'unspecified'}
+                    {existingOrder!.balance_payment_reference?.trim()
+                      ? ` — ref ${existingOrder!.balance_payment_reference.trim()}`
+                      : ''}
+                    . Change below if this was logged wrong.
+                  </p>
+                  {onBalancePaid ? (
+                    <div className="mt-3 flex flex-col gap-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <label className="block flex-1 text-sm font-medium text-emerald-950">
+                          Balance payment mode
+                          <select
+                            value={balancePaymentMode}
+                            onChange={(event) => {
+                              const nextMode = event.target.value as FlowerPaymentMode | '';
+                              setBalancePaymentMode(nextMode);
+                              if (nextMode === 'cash') {
+                                setBalancePaymentReference('');
+                              }
+                            }}
+                            className="flower-input mt-1.5 bg-white"
+                          >
+                            <option value="">Select payment mode</option>
+                            {branchPaymentModes.map((mode) => (
+                              <option key={mode} value={mode}>
+                                {FLOWER_PAYMENT_MODE_LABELS[mode]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {requiresBalanceReference ? (
+                          <label className="block flex-1 text-sm font-medium text-emerald-950">
+                            Reference #
+                            <input
+                              type="text"
+                              value={balancePaymentReference}
+                              onChange={(event) =>
+                                setBalancePaymentReference(event.target.value)
+                              }
+                              className="flower-input mt-1.5 bg-white"
+                              placeholder="GCash / bank reference"
+                            />
+                          </label>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleMarkBalancePaid()}
+                        disabled={
+                          isMarkingBalancePaid ||
+                          !balancePaymentMode ||
+                          (balancePaymentMode ===
+                            (existingOrder!.balance_payment_mode || '') &&
+                            (balancePaymentMode === 'cash' ||
+                              balancePaymentReference.trim() ===
+                                (existingOrder!.balance_payment_reference?.trim() ?? '')))
+                        }
+                        className="flower-btn-primary w-full sm:w-auto sm:self-start"
+                      >
+                        {isMarkingBalancePaid ? 'Saving...' : 'Update payment mode'}
+                      </button>
+                    </div>
+                  ) : null}
+                  {balancePaidMessage ? (
+                    <p
+                      className={`mt-2 text-sm ${
+                        balancePaidMessage.includes('updated') ||
+                        balancePaidMessage.includes('paid')
+                          ? 'text-emerald-800'
+                          : 'text-red-700'
+                      }`}
+                    >
+                      {balancePaidMessage}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
 
           {showReadyPhotoSection ? (
@@ -2069,7 +2166,7 @@ export default function FlowerOrderFormModal({
 
           <div className="mt-5">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-brand-dark">Flowers &amp; fillers</h3>
+              <h3 className="text-sm font-semibold text-brand-dark">Catalog items</h3>
               {flowerSelectionSummary.types > 0 ? (
                 <p className="text-xs font-medium text-brand-brown/75">
                   {flowerSelectionSummary.types} type{flowerSelectionSummary.types === 1 ? '' : 's'} ·{' '}
@@ -2213,6 +2310,10 @@ export default function FlowerOrderFormModal({
               <span className="mt-1 block text-xs text-brand-brown/60">
                 Choose a downpayment amount first.
               </span>
+            ) : !isViewMode && hasDownpayment ? (
+              <span className="mt-1 block text-xs text-brand-brown/60">
+                Required — pick Cash, GCash, or bank so reports stay accurate.
+              </span>
             ) : null}
           </label>
 
@@ -2244,8 +2345,8 @@ export default function FlowerOrderFormModal({
 
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <OrderAttachmentField
-              label="Photo of order / inspo"
-              previewLabel="Current inspo photo"
+              label="Reference photo"
+              previewLabel="Current reference photo"
               value={form.photo_inspo_data_url}
               optional={!requiresInspoPhoto}
               readOnly={isViewMode}

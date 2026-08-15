@@ -11,7 +11,7 @@ import type {
   UpdateFlowerOrderInput,
 } from '../../../modules/flowers/shared/types/flower-order';
 import { FLOWER_ORDER_TERMINAL_STATUSES } from '../../../modules/flowers/shared/types/flower-order';
-import { getLocalDayBoundsIso } from '../../../modules/flowers/shared/utils/flower-format';
+import { getLocalDayBoundsIso, formatInventoryOrderEditDeductNote, formatInventoryOrderEditRestoreNote } from '../../../modules/flowers/shared/utils/flower-format';
 import { normalizeFlowerPaymentMode } from '../../../modules/flowers/shared/utils/flower-payment';
 import type { FlowerPaymentMode } from '../../../modules/flowers/shared/types/flower-order';
 import {
@@ -236,6 +236,82 @@ function buildCreditFromOrderItems(
   }
 
   return credit;
+}
+
+/** When an order was already day-close deducted, editing items must restore/deduct the net delta. */
+async function reconcileInventoryAfterOrderContentEditSupabase(input: {
+  existing: FlowerOrder;
+  nextBranchId: string;
+  nextReceiver: string;
+  nextItems: Array<{ product_id: string; quantity: number }>;
+}): Promise<void> {
+  const { existing, nextBranchId, nextReceiver, nextItems } = input;
+  if (!existing.inventory_deducted) {
+    return;
+  }
+
+  const orderId = existing.id;
+  const editRestoreNote = formatInventoryOrderEditRestoreNote(orderId, nextReceiver);
+  const editDeductNote = formatInventoryOrderEditDeductNote(orderId, nextReceiver);
+
+  if (existing.branch_id !== nextBranchId) {
+    for (const item of existing.items) {
+      if (item.quantity <= 0) {
+        continue;
+      }
+      await restoreFlowerInventoryForOrderSupabase({
+        branchId: existing.branch_id,
+        productId: item.product_id,
+        quantity: item.quantity,
+        orderId,
+        receiver: existing.receiver,
+        note: editRestoreNote,
+      });
+    }
+
+    for (const item of nextItems) {
+      if (item.quantity <= 0) {
+        continue;
+      }
+      await deductFlowerInventoryForOrderSupabase({
+        branchId: nextBranchId,
+        productId: item.product_id,
+        quantity: item.quantity,
+        orderId,
+        receiver: nextReceiver,
+        note: editDeductNote,
+      });
+    }
+
+    return;
+  }
+
+  const previousQty = buildCreditFromOrderItems(existing.items);
+  const nextQty = buildCreditFromOrderItems(nextItems);
+  const productIds = new Set([...Object.keys(previousQty), ...Object.keys(nextQty)]);
+
+  for (const productId of productIds) {
+    const delta = (nextQty[productId] ?? 0) - (previousQty[productId] ?? 0);
+    if (delta > 0) {
+      await deductFlowerInventoryForOrderSupabase({
+        branchId: nextBranchId,
+        productId,
+        quantity: delta,
+        orderId,
+        receiver: nextReceiver,
+        note: editDeductNote,
+      });
+    } else if (delta < 0) {
+      await restoreFlowerInventoryForOrderSupabase({
+        branchId: nextBranchId,
+        productId,
+        quantity: Math.abs(delta),
+        orderId,
+        receiver: nextReceiver,
+        note: editRestoreNote,
+      });
+    }
+  }
 }
 
 async function fetchOrderById(orderId: string): Promise<FlowerOrder | null> {
@@ -478,6 +554,7 @@ export async function updateFlowerOrderSupabase(
   });
 
   const payment = computeOrderPaymentFields(input.total_amount, input.downpayment, {
+    balance_paid: existing.balance_paid,
     balance_payment_mode: existing.balance_payment_mode,
     balance_payment_reference: existing.balance_payment_reference,
   });
@@ -549,6 +626,13 @@ export async function updateFlowerOrderSupabase(
   if (itemsError) {
     throw itemsError;
   }
+
+  await reconcileInventoryAfterOrderContentEditSupabase({
+    existing,
+    nextBranchId: input.branch_id,
+    nextReceiver: input.receiver.trim(),
+    nextItems: input.items,
+  });
 
   const updated = await fetchOrderById(input.id);
   if (!updated) {
@@ -671,7 +755,8 @@ export async function markFlowerOrderBalancePaidSupabase(
     throw new Error('Order not found.');
   }
 
-  if (existing.balance <= 0 || existing.balance_paid) {
+  const isCorrection = existing.balance_paid;
+  if (!isCorrection && (existing.balance <= 0 || existing.balance_paid)) {
     throw new Error('This order has no remaining balance to collect.');
   }
 
@@ -689,23 +774,46 @@ export async function markFlowerOrderBalancePaidSupabase(
     throw new Error('Reference # is required for non-cash balance payments.');
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('flower_orders')
-    .update({
-      balance: 0,
-      balance_paid: true,
-      balance_payment_mode: normalizedMode,
-      balance_payment_reference: balancePaymentReference.trim(),
-    })
-    .eq('id', orderId);
+    .update(
+      isCorrection
+        ? {
+            balance_payment_mode: normalizedMode,
+            balance_payment_reference:
+              normalizedMode === 'cash' ? '' : balancePaymentReference.trim(),
+          }
+        : {
+            balance: 0,
+            balance_paid: true,
+            balance_payment_mode: normalizedMode,
+            balance_payment_reference:
+              normalizedMode === 'cash' ? '' : balancePaymentReference.trim(),
+          },
+    )
+    .eq('id', orderId)
+    .select('id')
+    .maybeSingle();
 
   if (error) {
     throw error;
   }
 
+  if (!data) {
+    throw new Error(
+      isCorrection
+        ? 'Could not update balance payment mode. Please refresh and try again.'
+        : 'Could not mark balance as paid. Please refresh and try again.',
+    );
+  }
+
   const updated = await fetchOrderById(orderId);
   if (!updated) {
-    throw new Error('Balance was updated but the order could not be loaded.');
+    throw new Error(
+      isCorrection
+        ? 'Balance payment mode was updated but the order could not be loaded.'
+        : 'Balance was updated but the order could not be loaded.',
+    );
   }
 
   return updated;

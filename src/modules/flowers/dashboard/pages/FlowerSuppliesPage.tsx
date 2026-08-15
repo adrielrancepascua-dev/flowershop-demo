@@ -18,11 +18,11 @@ import FlowerPageHeader from '../../shared/components/FlowerPageHeader';
 import FlowerPrintControls from '../../shared/components/FlowerPrintControls';
 import { FlowerSupplyTransferPrintDocument } from '../../shared/components/FlowerThermalPrint';
 import { PRICE_FORMATTER, toDateKey } from '../../shared/utils/flower-format';
+import { HUB_BRANCH_ID } from '../../shared/config/brand';
 import {
   buildSupplyTransferLine,
   computeFlowerLiability,
   computeSupplyTransferTotalLiability,
-  DAGUPAN_BRANCH_ID,
   describeSupplyTransferType,
 } from '../../shared/utils/flower-supply-transfer';
 import FlowerSupplyLineEditor, {
@@ -35,11 +35,11 @@ type SuppliesTab = 'new_arrival' | 'old_stock' | 'history';
 
 function emptyNewArrivalForm() {
   return {
-    arrivedAtBranchId: DAGUPAN_BRANCH_ID,
+    arrivedAtBranchId: HUB_BRANCH_ID,
     supplier: '',
     amountPaidSupplies: '',
     amountPaidTranspo: '',
-    fromBranchId: DAGUPAN_BRANCH_ID,
+    fromBranchId: HUB_BRANCH_ID,
     toBranchId: '',
     preparedBy: '',
     receivedBy: '',
@@ -50,7 +50,7 @@ function emptyNewArrivalForm() {
 function emptyOldStockForm() {
   return {
     originalArrivalDate: toDateKey(new Date()),
-    fromBranchId: DAGUPAN_BRANCH_ID,
+    fromBranchId: HUB_BRANCH_ID,
     toBranchId: '',
     preparedBy: '',
     receivedBy: '',

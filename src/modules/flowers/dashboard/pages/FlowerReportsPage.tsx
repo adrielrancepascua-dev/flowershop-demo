@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { listFlowerBranches } from '../../../../services/flowers/inventory';
-import { getFlowerDayCloseStatus } from '../../../../services/flowers/orders';
-import { canStaffAccessReports, getFlowerReports } from '../../../../services/flowers/reports';
+import { getFlowerReports, getStaffReportsAccess } from '../../../../services/flowers/reports';
 import {
   createFlowerSupplierCost,
   deleteFlowerSupplierCost,
@@ -47,13 +47,14 @@ function emptyReports(): FlowerReportsData {
 }
 
 export default function FlowerReportsPage() {
-  const { user, isAdmin } = useFlowerAuth();
+  const { user, isAdmin, canViewOwnerReportMetrics } = useFlowerAuth();
   const [reportsData, setReportsData] = useState<FlowerReportsData>(emptyReports());
   const [branches, setBranches] = useState<FlowerBranchOption[]>([]);
   const [branchFilter, setBranchFilter] = useState('all');
   const [reportDate, setReportDate] = useState(toDateKey(new Date()));
   const [loading, setLoading] = useState(true);
   const [blockedMessage, setBlockedMessage] = useState('');
+  const [showDailyCountLink, setShowDailyCountLink] = useState(false);
   const [supplierAmount, setSupplierAmount] = useState('');
   const [supplierDescription, setSupplierDescription] = useState('');
   const [supplierBranchId, setSupplierBranchId] = useState('');
@@ -93,6 +94,7 @@ export default function FlowerReportsPage() {
 
     setLoading(true);
     setBlockedMessage('');
+    setShowDailyCountLink(false);
 
     try {
       if (!isAdmin) {
@@ -102,15 +104,27 @@ export default function FlowerReportsPage() {
           return;
         }
 
-        const allowed = await canStaffAccessReports(effectiveReportDate, staffBranchId);
-        if (!allowed) {
-          const closeStatus = await getFlowerDayCloseStatus(effectiveReportDate, staffBranchId);
+        const access = await getStaffReportsAccess(effectiveReportDate, staffBranchId);
+        if (!access.allowed) {
           const branchLabel = staffBranchName ? `${staffBranchName} branch` : 'your branch';
-          setBlockedMessage(
-            closeStatus.total_orders === 0
-              ? `Reports unlock after today (${formatReportDateLabel(effectiveReportDate)}) once ${branchLabel} has scheduled orders and all are marked picked up or delivered.`
-              : `Reports locked — ${closeStatus.open_orders} open order(s) left for ${branchLabel} today. Mark all as picked up or delivered first.`,
-          );
+          if (access.pendingIncomingTransfers > 0) {
+            setBlockedMessage(
+              `Reports locked — ${access.pendingIncomingTransfers} incoming branch transfer request(s) still need confirmation for ${branchLabel}. Confirm them under Inventory → Inter-branch transfer first.`,
+            );
+          } else if (access.totalOrders === 0) {
+            setBlockedMessage(
+              `Reports unlock after today (${formatReportDateLabel(effectiveReportDate)}) once ${branchLabel} has scheduled orders and all are marked picked up or delivered.`,
+            );
+          } else if (access.openOrders > 0) {
+            setBlockedMessage(
+              `Reports locked — ${access.openOrders} open order(s) left for ${branchLabel} today. Mark all as picked up or delivered first.`,
+            );
+          } else {
+            setBlockedMessage(
+              `Reports locked — submit today’s daily inventory count for ${branchLabel} first.`,
+            );
+            setShowDailyCountLink(true);
+          }
           setReportsData(emptyReports());
           return;
         }
@@ -244,7 +258,9 @@ export default function FlowerReportsPage() {
         title="Reports"
         description={
           isAdmin
-            ? 'Net income = total sales − staff expenses − supplier costs. Pick any date to review history.'
+            ? canViewOwnerReportMetrics
+              ? 'Net income = total sales − staff expenses − supplier costs. Pick any date to review history.'
+              : 'Sales, expenses, and cash on hand across branches. Pick any date to review history.'
             : staffBranchName
               ? `Today's ${staffBranchName} sales and logged expenses. Supplier costs and net income are owner-only.`
               : `Today's sales and logged expenses for your branch. Supplier costs and net income are owner-only.`
@@ -284,6 +300,14 @@ export default function FlowerReportsPage() {
       {blockedMessage ? (
         <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {blockedMessage}
+          {showDailyCountLink ? (
+            <>
+              {' '}
+              <Link to="/dashboard/flowers/daily-count" className="font-semibold underline underline-offset-2">
+                Open Daily count
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -291,17 +315,23 @@ export default function FlowerReportsPage() {
         <p className="mt-6 text-sm text-brand-brown/60">Loading reports...</p>
       ) : !blockedMessage ? (
         <>
-          <div className={`mt-5 grid grid-cols-2 gap-3 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+          <div
+            className={`mt-5 grid grid-cols-2 gap-3 ${
+              canViewOwnerReportMetrics ? 'lg:grid-cols-4' : isAdmin ? 'lg:grid-cols-2' : 'lg:grid-cols-3'
+            }`}
+          >
             <MetricCard label="Total sales" value={PRICE_FORMATTER.format(reportsData.financial.total_sales)} />
             <MetricCard label="Expenses" value={PRICE_FORMATTER.format(reportsData.financial.staff_expenses)} />
-            {isAdmin ? (
+            {canViewOwnerReportMetrics ? (
               <MetricCard label="COGS" value={PRICE_FORMATTER.format(reportsData.financial.cogs)} />
             ) : null}
-            <MetricCard
-              label="Net sales"
-              value={PRICE_FORMATTER.format(reportsData.financial.net_sales)}
-              accent
-            />
+            {canViewOwnerReportMetrics || !isAdmin ? (
+              <MetricCard
+                label="Net sales"
+                value={PRICE_FORMATTER.format(reportsData.financial.net_sales)}
+                accent
+              />
+            ) : null}
           </div>
 
           {reportsData.financial.sales_by_payment.length > 0 ? (
@@ -651,6 +681,7 @@ export default function FlowerReportsPage() {
         <FlowerPrintableSalesReportPanel
           anchorDate={effectiveReportDate}
           isAdmin={isAdmin}
+          showProfitDetails={canViewOwnerReportMetrics}
           branchId={effectiveBranchFilter}
           disabled={isAdmin && branchFilter === 'all'}
           disabledMessage={

@@ -25,10 +25,12 @@ import FlowerPageHeader from '../../shared/components/FlowerPageHeader';
 import { formatBranchListLabel } from '../../shared/config/brand';
 import FlowerInventoryStockPrint from '../components/FlowerPrintableInventoryStockPanel';
 import FlowerPrintControls from '../../shared/components/FlowerPrintControls';
+import { FlowerBranchTransferPrintDocument } from '../../shared/components/FlowerThermalPrint';
 import { Minus, Plus, ArrowLeftRight, Package, ChevronDown, Check, X, Trash2, Search } from 'lucide-react';
 import {
   dedupeInventoryMovementRows,
   formatInventoryMovementTimestamp,
+  parseFlowerTimestamp,
   INVENTORY_MOVEMENT_TYPE_BADGES,
   INVENTORY_MOVEMENT_TYPE_LABELS,
   parseInventoryMovementOrderId,
@@ -546,6 +548,26 @@ function StockAdjustControls({
   );
 }
 
+type TransferHistoryTab = 'confirmed' | 'cancelled';
+
+const TRANSFER_HISTORY_TABS: Array<{ id: TransferHistoryTab; label: string }> = [
+  { id: 'confirmed', label: 'Confirmed' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
+
+function formatTransferDate(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—';
+  }
+
+  return parseFlowerTimestamp(iso).toLocaleDateString('en-PH', {
+    timeZone: 'Asia/Manila',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 const TRANSFER_STATUS_BADGES: Record<
   FlowerTransferRequest['status'],
   { label: string; className: string }
@@ -581,6 +603,35 @@ function transferRequestSummary(request: FlowerTransferRequest): string {
   }
 
   return `${request.items.length} products · ${transferRequestTotalUnits(request)} units`;
+}
+
+function groupTransferRequestItems(items: FlowerTransferRequestItem[]) {
+  const groups = new Map<string, FlowerTransferRequestItem[]>();
+
+  for (const item of items) {
+    const kind = normalizeFlowerProductKind(item.product_kind);
+    const fallbackType = item.product_name.split('·')[0]?.trim() || item.product_name;
+    const groupName =
+      kind === 'flower'
+        ? item.product_flower_type?.trim() || fallbackType
+        : item.product_flower_type?.trim() || 'Misc items';
+    const key = `${kind}:${groupName}`;
+    const existing = groups.get(key) ?? [];
+    existing.push(item);
+    groups.set(key, existing);
+  }
+
+  return [...groups.entries()]
+    .map(([key, groupedItems]) => {
+      const first = groupedItems[0];
+      const groupName =
+        normalizeFlowerProductKind(first?.product_kind) === 'flower'
+          ? first?.product_flower_type?.trim() || first?.product_name || 'Catalog'
+          : first?.product_flower_type?.trim() || 'Misc items';
+      const totalUnits = groupedItems.reduce((sum, item) => sum + item.quantity, 0);
+      return { key, groupName, items: groupedItems, totalUnits };
+    })
+    .sort((a, b) => a.groupName.localeCompare(b.groupName));
 }
 
 function TransferStatusBadge({ status }: { status: FlowerTransferRequest['status'] }) {
@@ -636,6 +687,7 @@ function TransferRequestCard({
   actions,
   pendingActionId,
   onResolve,
+  onPrint,
   isAdmin = false,
   billingSavingId = null,
   onBillingSave,
@@ -644,12 +696,14 @@ function TransferRequestCard({
   actions: Array<'confirm' | 'reject' | 'cancel'>;
   pendingActionId: string | null;
   onResolve: (request: FlowerTransferRequest, action: 'confirm' | 'reject' | 'cancel') => void;
+  onPrint?: (request: FlowerTransferRequest) => void;
   isAdmin?: boolean;
   billingSavingId?: string | null;
   onBillingSave?: (input: {
     requestId: string;
     total_cost: number | null;
     cost_paid: boolean;
+    note: string;
   }) => Promise<void>;
 }) {
   const busy = pendingActionId === request.id;
@@ -719,6 +773,14 @@ function TransferRequestCard({
               Cancel request
             </button>
           ) : null}
+          {onPrint ? (
+            <FlowerPrintControls
+              compact
+              label="Print slip"
+              showSizeHint={false}
+              onPrint={() => onPrint(request)}
+            />
+          ) : null}
         </div>
       </div>
       {isAdmin && onBillingSave ? (
@@ -740,6 +802,7 @@ function TransferRequestInbox({
   pendingActionId,
   billingSavingId,
   onResolve,
+  onPrint,
   onBillingSave,
 }: {
   incoming: FlowerTransferRequest[];
@@ -749,10 +812,12 @@ function TransferRequestInbox({
   pendingActionId: string | null;
   billingSavingId: string | null;
   onResolve: (request: FlowerTransferRequest, action: 'confirm' | 'reject' | 'cancel') => void;
+  onPrint?: (request: FlowerTransferRequest) => void;
   onBillingSave?: (input: {
     requestId: string;
     total_cost: number | null;
     cost_paid: boolean;
+    note: string;
   }) => Promise<void>;
 }) {
   return (
@@ -784,6 +849,7 @@ function TransferRequestInbox({
                 actions={['confirm', 'reject']}
                 pendingActionId={pendingActionId}
                 onResolve={onResolve}
+                onPrint={onPrint}
                 isAdmin={isAdmin}
                 billingSavingId={billingSavingId}
                 onBillingSave={onBillingSave}
@@ -819,6 +885,7 @@ function TransferRequestInbox({
                   actions={['cancel']}
                   pendingActionId={pendingActionId}
                   onResolve={onResolve}
+                  onPrint={onPrint}
                 />
               ))}
             </ul>
@@ -1065,6 +1132,8 @@ export default function FlowerInventoryPage() {
   const [transferRequestsLoading, setTransferRequestsLoading] = useState(false);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [billingSavingId, setBillingSavingId] = useState<string | null>(null);
+  const [transferHistoryTab, setTransferHistoryTab] = useState<TransferHistoryTab>('confirmed');
+  const [printTransferRequest, setPrintTransferRequest] = useState<FlowerTransferRequest | null>(null);
 
   async function loadData() {
     const isFirstLoad = isFirstLoadRef.current;
@@ -1256,6 +1325,25 @@ export default function FlowerInventoryPage() {
     [transferRequests],
   );
 
+  const transferHistoryCounts = useMemo(() => {
+    const counts = { confirmed: 0, cancelled: 0 };
+
+    for (const request of resolvedTransferRequests) {
+      if (request.status === 'confirmed') {
+        counts.confirmed += 1;
+      } else if (request.status === 'cancelled') {
+        counts.cancelled += 1;
+      }
+    }
+
+    return counts;
+  }, [resolvedTransferRequests]);
+
+  const filteredResolvedTransferRequests = useMemo(
+    () => resolvedTransferRequests.filter((request) => request.status === transferHistoryTab),
+    [resolvedTransferRequests, transferHistoryTab],
+  );
+
   const unpaidTransferBalances = useMemo(
     () => (isAdmin ? summarizeUnpaidTransferBalances(transferRequests) : []),
     [isAdmin, transferRequests],
@@ -1439,6 +1527,7 @@ export default function FlowerInventoryPage() {
     requestId: string;
     total_cost: number | null;
     cost_paid: boolean;
+    note: string;
   }) {
     setBillingSavingId(input.requestId);
     setTransferErrorMessage('');
@@ -1525,18 +1614,18 @@ export default function FlowerInventoryPage() {
           isAdmin
             ? isAllBranchesView
               ? stockKindTab === 'flower'
-                ? `Flower totals across ${formatBranchListLabel()}. Select a branch to adjust stock.`
-                : 'Miscellaneous totals by category. Select a branch to stock in wrappers or gift items.'
+                ? `Catalog totals across ${formatBranchListLabel()}. Select a branch to adjust stock.`
+                : 'Supply totals by category. Select a branch to stock in extras.'
               : stockKindTab === 'flower'
-                ? 'Flower stock grouped by type with colors in order.'
-                : 'Stock in or out wrappers and gift items for this branch.'
+                ? 'Catalog stock grouped by type with variants in order.'
+                : 'Stock in or out supply items for this branch.'
             : isAllBranchesView
               ? stockKindTab === 'flower'
-                ? 'Combined flower totals across all branches.'
-                : 'Combined wrappers and gift item totals across all branches.'
+                ? 'Combined catalog totals across all branches.'
+                : 'Combined supply totals across all branches.'
               : stockKindTab === 'flower'
-                ? 'View-only flower stock for this branch.'
-                : 'View-only wrappers and gift item stock for this branch.'
+                ? 'View-only catalog stock for this branch.'
+                : 'View-only supply stock for this branch.'
         }
       />
 
@@ -1614,6 +1703,7 @@ export default function FlowerInventoryPage() {
             pendingActionId={pendingActionId}
             billingSavingId={billingSavingId}
             onResolve={handleResolveTransferRequest}
+            onPrint={setPrintTransferRequest}
             onBillingSave={isAdmin ? handleSaveTransferBilling : undefined}
           />
 
@@ -1714,8 +1804,8 @@ export default function FlowerInventoryPage() {
                             : fromBranchStockLoading
                               ? 'Loading stock...'
                               : transferFlowerSections.length === 0
-                                ? 'No flowers at this branch'
-                                : 'Select flower type'}
+                                ? 'No catalog items at this branch'
+                                : 'Select product type'}
                         </option>
                         {transferFlowerSections.map((section) => {
                           const totalOnHand = section.rows.reduce((sum, row) => sum + row.on_hand, 0);
@@ -1742,7 +1832,7 @@ export default function FlowerInventoryPage() {
                       >
                         <option value="">
                           {!transferFlowerType
-                            ? 'Select flower type first'
+                            ? 'Select product type first'
                             : transferColorOptions.length === 0
                               ? 'No colors available'
                               : 'Select color'}
@@ -1768,7 +1858,7 @@ export default function FlowerInventoryPage() {
                   </>
                 ) : (
                   <label className="block text-sm font-medium text-brand-brown sm:col-span-2">
-                    Wrapper / gift item
+                    Supply item
                     <select
                       value={transferProductId}
                       onChange={(e) => {
@@ -1835,10 +1925,10 @@ export default function FlowerInventoryPage() {
                 <p className="mt-3 text-xs text-brand-brown/60">
                   {transferKind === 'flower'
                     ? transferFlowerSections.length === 0
-                      ? `No active flowers at ${fromBranchName}.`
-                      : 'Choose a flower type and color, then add it to the transfer.'
+                      ? `No active catalog items at ${fromBranchName}.`
+                      : 'Choose a product type and variant, then add it to the transfer.'
                     : transferMiscProducts.length === 0
-                      ? `No wrappers or gift items at ${fromBranchName}.`
+                      ? `No supply items at ${fromBranchName}.`
                       : 'Choose an item, then add it to the transfer.'}
                 </p>
               ) : null}
@@ -1896,7 +1986,7 @@ export default function FlowerInventoryPage() {
                   </ul>
                 ) : (
                   <p className="mt-3 rounded-lg border border-dashed border-brand-muted/40 px-3 py-4 text-center text-sm text-brand-brown/60">
-                    No products added yet. Pick a flower or misc item above, then tap Add to transfer.
+                    No products added yet. Pick a catalog or supply item above, then tap Add to transfer.
                   </p>
                 )}
                 <div className="mt-4 flex justify-end">
@@ -1913,23 +2003,89 @@ export default function FlowerInventoryPage() {
 
           <div className="mt-6">
             <h3 className="text-sm font-semibold text-brand-dark">Transfer request history</h3>
-            <ul className="mt-2 space-y-3 text-sm text-brand-brown/80">
-              {resolvedTransferRequests.length > 0 ? (
-                resolvedTransferRequests.map((request) => (
+            <div className="mt-3 inline-flex max-w-full flex-wrap rounded-xl border border-brand-muted/50 bg-white p-1">
+              {TRANSFER_HISTORY_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setTransferHistoryTab(tab.id)}
+                  className={`flower-pill flex items-center gap-1.5 ${
+                    transferHistoryTab === tab.id ? 'flower-pill-active' : 'flower-pill-inactive'
+                  }`}
+                >
+                  {tab.label}
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      transferHistoryTab === tab.id
+                        ? 'bg-white/20 text-white'
+                        : 'bg-brand-beige/70 text-brand-brown/75'
+                    }`}
+                  >
+                    {transferHistoryCounts[tab.id]}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <ul className="mt-3 space-y-3 text-sm text-brand-brown/80">
+              {filteredResolvedTransferRequests.length > 0 ? (
+                filteredResolvedTransferRequests.map((request) => (
                   <li
                     key={request.id}
                     className="rounded-xl border border-brand-muted/30 bg-white px-3 py-3 sm:px-4"
                   >
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <TransferStatusBadge status={request.status} />
-                      <span className="font-medium text-brand-dark">
-                        {request.from_branch_name} → {request.to_branch_name}
-                      </span>
-                      <span>· {transferRequestSummary(request)}</span>
-                      {request.resolved_by_name ? (
-                        <span className="text-xs text-brand-brown/60">by {request.resolved_by_name}</span>
-                      ) : null}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <TransferStatusBadge status={request.status} />
+                          <span className="font-medium text-brand-dark">
+                            {request.from_branch_name} → {request.to_branch_name}
+                          </span>
+                          <span>· {transferRequestSummary(request)}</span>
+                          {request.resolved_by_name ? (
+                            <span className="text-xs text-brand-brown/60">by {request.resolved_by_name}</span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-brand-brown/65">
+                          Transfer date: {formatTransferDate(request.resolved_at ?? request.created_at)}
+                        </p>
+                      </div>
+                      <FlowerPrintControls
+                        compact
+                        label="Print slip"
+                        showSizeHint={false}
+                        onPrint={() => setPrintTransferRequest(request)}
+                      />
                     </div>
+                    <details className="mt-2 rounded-lg border border-brand-muted/30 bg-brand-cream/15 px-3 py-2">
+                      <summary className="cursor-pointer text-xs font-semibold text-brand-brown/75">
+                        View transferred items ({request.items.length})
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {groupTransferRequestItems(request.items).map((group) => (
+                          <details
+                            key={group.key}
+                            className="rounded-lg border border-brand-muted/25 bg-white px-2.5 py-2"
+                          >
+                            <summary className="cursor-pointer text-xs font-semibold text-brand-dark">
+                              {group.groupName} ({group.items.length}) · {group.totalUnits} units
+                            </summary>
+                            <ul className="mt-2 space-y-1.5">
+                              {group.items.map((item) => (
+                                <li
+                                  key={item.id}
+                                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-muted/20 bg-brand-cream/15 px-2.5 py-1.5"
+                                >
+                                  <TransferRequestItemLabel item={item} />
+                                  <span className="rounded-full border border-brand-muted/40 bg-white px-2 py-0.5 text-xs font-semibold text-brand-dark">
+                                    {item.quantity} units
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ))}
+                      </div>
+                    </details>
                     {isAdmin ? (
                       <TransferRequestAdminBillingPanel
                         request={request}
@@ -1942,8 +2098,10 @@ export default function FlowerInventoryPage() {
                   </li>
                 ))
               ) : (
-                <li className="rounded-lg border border-brand-muted/30 px-3 py-2 text-brand-brown/60">
-                  No completed transfer requests yet.
+                <li className="rounded-lg border border-dashed border-brand-muted/40 px-3 py-6 text-center text-brand-brown/60">
+                  {transferHistoryTab === 'confirmed'
+                    ? 'No confirmed transfer requests yet.'
+                    : 'No cancelled transfer requests yet.'}
                 </li>
               )}
             </ul>
@@ -2007,9 +2165,9 @@ export default function FlowerInventoryPage() {
           </div>
           <p className="mt-2 text-sm text-brand-brown/70">
             {isAllBranchesView
-              ? `Showing combined ${stockKindTab === 'flower' ? 'flower' : MISC_PRODUCT_CATEGORY_LABELS[miscCategoryFilter].toLowerCase()} totals (${totalUnitsOnHand} units on hand).`
-              : `Showing ${stockKindTab === 'flower' ? 'flower' : MISC_PRODUCT_CATEGORY_LABELS[miscCategoryFilter].toLowerCase()} stock for ${selectedBranchName} (${totalUnitsOnHand} units on hand)${
-                  stockKindTab === 'flower' ? ', grouped by flower type' : ''
+              ? `Showing combined ${stockKindTab === 'flower' ? 'catalog' : MISC_PRODUCT_CATEGORY_LABELS[miscCategoryFilter].toLowerCase()} totals (${totalUnitsOnHand} units on hand).`
+              : `Showing ${stockKindTab === 'flower' ? 'catalog' : MISC_PRODUCT_CATEGORY_LABELS[miscCategoryFilter].toLowerCase()} stock for ${selectedBranchName} (${totalUnitsOnHand} units on hand)${
+                  stockKindTab === 'flower' ? ', grouped by product type' : ''
                 }.`}
             {isRefreshing ? ' · Updating…' : ''}
           </p>
@@ -2028,7 +2186,7 @@ export default function FlowerInventoryPage() {
                 ))}
                 {stockByFlowerType.length === 0 ? (
                   <p className="rounded-xl border border-brand-muted/30 px-3 py-6 text-center text-sm text-brand-brown/60">
-                    No flower stock to show for this filter.
+                    No catalog stock to show for this filter.
                   </p>
                 ) : null}
               </>
@@ -2091,7 +2249,7 @@ export default function FlowerInventoryPage() {
                 <tr>
                   {isAllBranchesView ? null : <th className="px-3 py-2">Branch</th>}
                   <th className="min-w-[10rem] px-3 py-2">
-                    {stockKindTab === 'flower' ? 'Flower' : 'Item'}
+                    {stockKindTab === 'flower' ? 'Product' : 'Item'}
                   </th>
                   <th className="px-3 py-2">{isAllBranchesView ? 'Total on hand' : 'On hand'}</th>
                   {isAdmin && !isAllBranchesView ? (
@@ -2115,7 +2273,7 @@ export default function FlowerInventoryPage() {
                     {stockByFlowerType.length === 0 ? (
                       <tr>
                         <td colSpan={stockTableColSpan} className="px-3 py-8 text-center text-brand-brown/60">
-                          No flower stock to show for this filter.
+                          No catalog stock to show for this filter.
                         </td>
                       </tr>
                     ) : null}
@@ -2182,6 +2340,8 @@ export default function FlowerInventoryPage() {
           disabled={loading && stockRows.length === 0}
         />
       ) : null}
+
+      {printTransferRequest ? <FlowerBranchTransferPrintDocument request={printTransferRequest} /> : null}
     </div>
   );
 }

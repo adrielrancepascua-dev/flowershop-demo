@@ -48,7 +48,7 @@ export function assertOrderInspoPhotoProvided(
   }
 
   if (!String(photoInspoDataUrl ?? '').trim()) {
-    throw new Error('Photo of order / inspo is required for flower orders.');
+    throw new Error('Reference photo is required for catalog orders.');
   }
 }
 

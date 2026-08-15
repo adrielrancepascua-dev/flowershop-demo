@@ -377,7 +377,8 @@ export async function adjustFlowerInventorySupabase(input: AdjustFlowerInventory
       delta,
       movementType,
       note,
-      allowNegative: false,
+      // Flower ops allow negative counts (orders/transfers already do); stock-out must match.
+      allowNegative: true,
     })
   ) {
     return;
@@ -399,10 +400,6 @@ export async function adjustFlowerInventorySupabase(input: AdjustFlowerInventory
     input.movementType === 'stock_in'
       ? previousOnHand + quantity
       : previousOnHand - quantity;
-
-  if (nextOnHand < 0) {
-    throw new Error('Insufficient stock. Stock out would result in negative balance.');
-  }
 
   const nowIso = new Date().toISOString();
 
@@ -553,13 +550,14 @@ export async function deductFlowerInventoryForOrderSupabase(input: {
   quantity: number;
   orderId: string;
   receiver: string;
+  note?: string;
 }): Promise<void> {
   await applyFlowerStockChangeSupabase({
     branchId: input.branchId,
     productId: input.productId,
     delta: -input.quantity,
     movementType: 'order_deduct',
-    note: formatInventoryOrderDeductNote(input.orderId, input.receiver),
+    note: input.note ?? formatInventoryOrderDeductNote(input.orderId, input.receiver),
     allowNegative: true,
   });
 }
@@ -570,13 +568,14 @@ export async function restoreFlowerInventoryForOrderSupabase(input: {
   quantity: number;
   orderId: string;
   receiver: string;
+  note?: string;
 }): Promise<void> {
   await applyFlowerStockChangeSupabase({
     branchId: input.branchId,
     productId: input.productId,
     delta: input.quantity,
     movementType: 'stock_in',
-    note: formatInventoryOrderVoidNote(input.orderId, input.receiver),
+    note: input.note ?? formatInventoryOrderVoidNote(input.orderId, input.receiver),
   });
 }
 
@@ -970,6 +969,8 @@ async function resolveTransferRequest(
         delta: item.quantity,
         movementType: 'transfer_in',
         note: `Transfer received from ${request.from_branch_name}`,
+        // Receiving branch may already be negative from walk-in orders; still accept the transfer.
+        allowNegative: true,
       });
     }
   } else {
@@ -1046,6 +1047,15 @@ export async function updateFlowerTransferRequestBillingSupabase(
     }
 
     throw toServiceError(error, 'Failed to update transfer billing.');
+  }
+
+  const { error: noteError } = await supabase
+    .from('flower_inventory_transfers')
+    .update({ note: input.note?.trim() ?? '' })
+    .eq('id', input.requestId);
+
+  if (noteError) {
+    throw toServiceError(noteError, 'Failed to save transfer note.');
   }
 
   const { data, error: loadError } = await supabase

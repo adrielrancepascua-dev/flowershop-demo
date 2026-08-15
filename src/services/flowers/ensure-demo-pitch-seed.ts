@@ -26,12 +26,14 @@ export async function ensureFlowerDemoPitchSeedLocal(): Promise<void> {
       listFlowerTransferRequestsLocal,
       listFlowerInventoryStockLocal,
     },
+    { listDailyInventoryCountsLocal },
     { listFlowerSupplyTransfersLocal },
     { listFlowerStemsLocal },
   ] = await Promise.all([
     import('./orders/flowers-orders.local'),
     import('./expenses/flowers-expenses.local'),
     import('./inventory/flowers-inventory.local'),
+    import('./inventory/flowers-daily-inventory.local'),
     import('./supplies/flowers-supply-transfers.local'),
     import('./products/flowers-products.local'),
   ]);
@@ -44,6 +46,7 @@ export async function ensureFlowerDemoPitchSeedLocal(): Promise<void> {
     listFlowerSupplierCostsLocal(),
     listFlowerInventoryMovementsLocal({ limit: 50 }),
     listFlowerTransferRequestsLocal({ includeBilling: true }),
+    listDailyInventoryCountsLocal(),
     listFlowerSupplyTransfersLocal(),
   ]);
 }

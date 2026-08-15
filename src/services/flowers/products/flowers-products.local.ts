@@ -14,9 +14,9 @@ import {
   miscCategoryStorageLabel,
 } from '../../../modules/flowers/shared/utils/flower-misc-category';
 
-const PRODUCTS_STORAGE_KEY = 'bloom_branch_demo_flower_stems_v2';
-const PRODUCTS_SEEDED_KEY = 'bloom_branch_demo_flower_stems_seeded_v2';
-const INVENTORY_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_v2';
+const PRODUCTS_STORAGE_KEY = 'bloom_branch_demo_flower_stems_v4';
+const PRODUCTS_SEEDED_KEY = 'bloom_branch_demo_flower_stems_seeded_v4';
+const INVENTORY_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_v3';
 const MOVEMENTS_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_movements_v2';
 
 function readProductsFromStorage(): FlowerProduct[] {
