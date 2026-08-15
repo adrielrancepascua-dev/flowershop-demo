@@ -159,7 +159,7 @@ async function runDeepTests(browser, viewportName, contextOptions) {
       await page.waitForTimeout(600);
     }
     const orderRow = page.locator('tr button, li button').first();
-    const fallbackRow = page.getByText(/daily order|view order|papers & petals/i).first();
+    const fallbackRow = page.getByText(/order|view order|plaza retail/i).first();
     if ((await orderRow.count()) > 0) {
       await orderRow.click({ timeout: 5000 });
     } else if ((await fallbackRow.count()) > 0) {

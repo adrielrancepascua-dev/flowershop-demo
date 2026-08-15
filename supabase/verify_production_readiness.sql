@@ -1,4 +1,4 @@
--- Quick production sanity check for Bloom & Branch demo.
+-- Quick production sanity check for the Plaza Retail demo.
 -- Run in Supabase SQL editor. All checks should return at least one row where noted.
 
 -- 1) Atomic stock RPC exists and is callable by authenticated users

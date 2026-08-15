@@ -1,15 +1,10 @@
-export type AppMode = 'cafe' | 'flower_demo';
+export type AppMode = 'flower_demo';
 
+/** This repo is the generic operations demo only. */
 export function getAppMode(): AppMode {
-  const rawMode = String(import.meta.env.VITE_APP_MODE || 'cafe').trim().toLowerCase();
-
-  if (rawMode === 'flower_demo') {
-    return 'flower_demo';
-  }
-
-  return 'cafe';
+  return 'flower_demo';
 }
 
 export function isFlowerDemoMode(): boolean {
-  return getAppMode() === 'flower_demo';
+  return true;
 }

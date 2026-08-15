@@ -1,4 +1,4 @@
--- Bloom & Branch — Flowers v2 schema (Supabase demo / white-label)
+-- Plaza Retail — operations demo schema (Supabase optional backend)
 -- Run in Supabase SQL editor when connecting production auth/storage.
 
 create table if not exists public.flower_profiles (

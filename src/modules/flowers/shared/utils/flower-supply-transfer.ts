@@ -12,11 +12,6 @@ import {
 } from './flower-product-colors';
 import { normalizeFlowerProductKind } from './flower-product-kind';
 
-import { HUB_BRANCH_ID } from '../config/brand';
-
-/** @deprecated Use HUB_BRANCH_ID — kept for import compatibility during white-label forks. */
-export const DAGUPAN_BRANCH_ID = HUB_BRANCH_ID;
-
 export function buildSupplyTransferLine(
   input: FlowerSupplyTransferLineInput,
   product: FlowerProduct,

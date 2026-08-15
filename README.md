@@ -65,7 +65,7 @@ Connect your own Supabase project:
 
 1. Run SQL in `supabase/` (start with `schema_flowers_v2.sql`, then migrations).
 2. Use `supabase/seed_demo_branches.sql` and `seed_flowers_products_and_stock.sql`.
-3. Set `VITE_APP_MODE=cafe`, `VITE_FLOWER_STORAGE_MODE=supabase`, and Supabase keys.
+3. Set `VITE_FLOWER_STORAGE_MODE=supabase` and your Supabase keys.
 
 ## Deploy (Vercel)
 

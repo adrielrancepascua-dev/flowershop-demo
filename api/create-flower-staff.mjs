@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   const emailDomain =
     process.env.STAFF_EMAIL_DOMAIN ||
     process.env.VITE_STAFF_EMAIL_DOMAIN ||
-    'demo.bloombranch.app';
+    'demo.plazaretail.app';
 
   try {
     const { adminClient, adminUserId } = await requireFlowerAdmin(token);

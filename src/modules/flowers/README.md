@@ -1,27 +1,19 @@
-# Flowers Module Preparation (Foundation Only)
+# Operations module (this demo)
 
-This module is intentionally placeholder-only so the workspace stays ready for a future flower shop scope without implementing unconfirmed business logic.
+This is the live back-office demo for Plaza Retail — generic multi-branch inventory, orders, and staff operations. Catalog SKUs are placeholders.
 
-## Public Zone (future)
-- /flowers
-- /flowers/shop
-- /flowers/product/:id
-- /flowers/checkout
-- /flowers/order-status
+## Dashboard routes
 
-## Dashboard Zone (future)
-- /dashboard/flowers
-- /dashboard/flowers/orders
-- /dashboard/flowers/products
-- /dashboard/flowers/branches
-- /dashboard/flowers/inventory
-- /dashboard/flowers/payment-verification
-- /dashboard/flowers/walk-in
-- /dashboard/flowers/attendance
+- `/login`
+- `/dashboard/flowers`
+- `/dashboard/flowers/orders`
+- `/dashboard/flowers/products`
+- `/dashboard/flowers/branches` (not routed in the current demo)
+- `/dashboard/flowers/inventory`
+- `/dashboard/flowers/daily-count`
+- `/dashboard/flowers/supplies`
+- `/dashboard/flowers/expenses`
+- `/dashboard/flowers/reports`
+- `/dashboard/flowers/team`
 
-## Shared Future Contracts
-- branch-aware product filtering
-- branch-aware order intent
-- same-day vs scheduled order flags
-- pickup vs delivery flags
-- owner multi-branch scope
+There is no public storefront in this repo.
