@@ -59,13 +59,7 @@ Override via environment variables:
 
 Defaults live in `src/modules/flowers/shared/config/brand.ts`.
 
-## Production path (optional)
-
-Connect your own Supabase project:
-
-1. Run SQL in `supabase/` (start with `schema_flowers_v2.sql`, then migrations).
-2. Use `supabase/seed_demo_branches.sql` and `seed_flowers_products_and_stock.sql`.
-3. Set `VITE_FLOWER_STORAGE_MODE=supabase` and your Supabase keys.
+Data never leaves the browser. There is no Supabase project, login, or sync in this demo.
 
 ## Deploy (Vercel)
 

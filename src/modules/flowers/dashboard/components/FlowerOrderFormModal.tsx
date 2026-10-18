@@ -6,6 +6,7 @@ import type { FlowerBranchOption } from '../../shared/types/flower-inventory';
 import { extractSupabaseErrorMessage } from '../../../../lib/supabase/errors';
 import {
   FLOWER_ORDER_COMPLETE_STATUSES,
+  defaultFlowerClaimModeForScheduledIso,
   formatFlowerClaimModeLabel,
   formatScheduledForFieldLabel,
   getFlowerOrderStatusSequenceForClaimMode,
@@ -28,6 +29,7 @@ import {
   ORDER_STATUS_LABELS,
   PRICE_FORMATTER,
   formatPickupDateTimeLocal,
+  formatOrderInputTimestamp,
   fromDateInputValue,
   readFileAsDataUrl,
   toDateInputValue,
@@ -114,6 +116,7 @@ type OrderFormProps = {
     orderId: string,
     balancePaymentMode: FlowerPaymentMode,
     balancePaymentReference: string,
+    proofBalanceDataUrl: string,
   ) => Promise<void>;
   onDelete?: () => void;
   branches: FlowerBranchOption[];
@@ -430,7 +433,7 @@ function FlowerTypeOrderPicker({
         type="search"
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
-        placeholder="Search flowers..."
+        placeholder="Search catalog..."
         className="flower-input mb-2"
       />
 
@@ -820,7 +823,7 @@ function emptyForm(
     receiver: '',
     customer_social: '',
     scheduled_for: pickupIso,
-    claim_mode: 'pickup',
+    claim_mode: defaultFlowerClaimModeForScheduledIso(pickupIso),
     wrapper_color: '',
     greeting_card: '',
     special_instructions: '',
@@ -876,6 +879,7 @@ export default function FlowerOrderFormModal({
   const [statusMessage, setStatusMessage] = useState('');
   const [balancePaymentMode, setBalancePaymentMode] = useState<FlowerPaymentMode | ''>('');
   const [balancePaymentReference, setBalancePaymentReference] = useState('');
+  const [balanceProofDataUrl, setBalanceProofDataUrl] = useState('');
   const [balancePaidMessage, setBalancePaidMessage] = useState('');
   const [isMarkingBalancePaid, setIsMarkingBalancePaid] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -970,6 +974,7 @@ export default function FlowerOrderFormModal({
           : '',
       );
       setBalancePaymentReference(order.balance_payment_reference?.trim() ?? '');
+      setBalanceProofDataUrl(order.proof_balance_data_url ?? '');
     } else {
       const normalizedDpMode =
         order.downpayment > 0 && order.payment_mode
@@ -1016,6 +1021,7 @@ export default function FlowerOrderFormModal({
     setErrorMessage('');
     setBalancePaymentMode('');
     setBalancePaymentReference('');
+    setBalanceProofDataUrl('');
     setBalancePaidMessage('');
   }, [open, existingOrder, initialPickupIso, staffId, staffName, staffBranchId, isAdmin]);
 
@@ -1254,7 +1260,6 @@ export default function FlowerOrderFormModal({
     [miscProducts, productQuantities],
   );
 
-  const requiresDownpaymentProof = useMemo(() => hasDownpayment, [hasDownpayment]);
   const activeBranchId = existingOrder?.branch_id ?? form.branch_id;
   const activeBranchName =
     branches.find((branch) => branch.id === activeBranchId)?.name ?? activeBranchId;
@@ -1266,9 +1271,17 @@ export default function FlowerOrderFormModal({
   const showBalanceDue = Boolean(
     existingOrder && existingOrder.balance > 0 && !existingOrder.balance_paid,
   );
-  const showBalancePaidBanner = Boolean(existingOrder?.balance_paid);
+  const showBalancePaidBanner = Boolean(
+    existingOrder?.balance_paid && existingOrder.downpayment < existingOrder.total_amount,
+  );
+  const showPaidInFullViaDownpayment = Boolean(
+    existingOrder &&
+      existingOrder.balance_paid &&
+      existingOrder.downpayment >= existingOrder.total_amount &&
+      existingOrder.total_amount > 0,
+  );
   const showReadyPhotoSection = Boolean(existingOrder && onReadyPhotoSubmit);
-  const showTopPrepSection = showBalanceDue || showBalancePaidBanner || showReadyPhotoSection;
+  const showTopPrepSection = showBalanceDue || showBalancePaidBanner || showPaidInFullViaDownpayment || showReadyPhotoSection;
 
   if (!open) {
     return null;
@@ -1393,18 +1406,20 @@ export default function FlowerOrderFormModal({
       trimmedDownpayment === '' ? 0 : Number(trimmedDownpayment);
     const total_amount = Number(totalAmountDraft);
 
-    if (trimmedDownpayment !== '' && !Number.isFinite(downpayment)) {
-      showValidationError('Downpayment must be a valid amount.');
-      return null;
-    }
-
     if (!Number.isFinite(total_amount) || total_amount <= 0) {
       showValidationError('Total amount must be greater than 0.');
       return null;
     }
 
-    if (!Number.isFinite(downpayment) || downpayment < 0) {
-      showValidationError('Downpayment must be 0 or greater.');
+    if (trimmedDownpayment === '' || !Number.isFinite(downpayment)) {
+      showValidationError('Downpayment is required.');
+      return null;
+    }
+
+    if (downpayment <= 0) {
+      showValidationError(
+        'Downpayment must be greater than 0. Enter a partial DP or the full total if already paid in full.',
+      );
       return null;
     }
 
@@ -1413,20 +1428,18 @@ export default function FlowerOrderFormModal({
       return null;
     }
 
-    const requiresProof = downpayment > 0;
-
-    if (requiresProof && !form.payment_mode) {
+    if (!form.payment_mode) {
       showValidationError('Please choose a downpayment payment mode (Cash, GCash, or bank).');
       return null;
     }
 
-    if (requiresProof && !form.payment_reference.trim()) {
-      showValidationError('Reference # is required when downpayment is greater than 0.');
+    if (!form.payment_reference.trim()) {
+      showValidationError('Reference # is required for the downpayment.');
       return null;
     }
 
-    if (requiresProof && !form.proof_dp_data_url) {
-      showValidationError('Proof of DP is required when downpayment is greater than 0.');
+    if (!form.proof_dp_data_url) {
+      showValidationError('Proof of DP is required.');
       return null;
     }
 
@@ -1446,8 +1459,7 @@ export default function FlowerOrderFormModal({
     setErrorMessage('');
     return {
       ...form,
-      // When there is no DP yet, store a neutral placeholder; reports ignore DP mode at ₱0.
-      payment_mode: requiresProof ? form.payment_mode : form.payment_mode || 'cash',
+      payment_mode: form.payment_mode,
       wrapper_color,
       downpayment,
       total_amount,
@@ -1493,6 +1505,12 @@ export default function FlowerOrderFormModal({
       return;
     }
 
+    const proofToSave = balanceProofDataUrl.trim() || existingOrder.proof_balance_data_url.trim();
+    if (!proofToSave) {
+      setBalancePaidMessage('Proof of balance payment is required.');
+      return;
+    }
+
     const isCorrection = existingOrder.balance_paid;
     setIsMarkingBalancePaid(true);
     setBalancePaidMessage('');
@@ -1502,6 +1520,7 @@ export default function FlowerOrderFormModal({
         existingOrder.id,
         balancePaymentMode,
         balancePaymentMode === 'cash' ? '' : balancePaymentReference.trim(),
+        proofToSave,
       );
       setBalancePaidMessage(
         isCorrection ? 'Balance payment mode updated.' : 'Balance marked as paid.',
@@ -1519,6 +1538,22 @@ export default function FlowerOrderFormModal({
       setIsMarkingBalancePaid(false);
     }
   }
+
+  async function handleBalanceProofFileChange(file: File | null) {
+    if (!file) {
+      setBalanceProofDataUrl('');
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setBalanceProofDataUrl(dataUrl);
+      setBalancePaidMessage('');
+    } catch (error) {
+      setBalancePaidMessage(error instanceof Error ? error.message : 'Could not load balance proof photo.');
+    }
+  }
+
 
   async function handleStatusSelect(nextStatus: FlowerOrderStatus) {
     if (!existingOrder || !onStatusChange) {
@@ -1597,6 +1632,12 @@ export default function FlowerOrderFormModal({
             <h2 className="font-serif text-lg font-semibold text-brand-dark">
               {BRAND_NAME} — Order
             </h2>
+            {existingOrder ? (
+              <p className="mt-1 text-xs text-brand-brown/70">
+                Input {formatOrderInputTimestamp(existingOrder.created_at)}
+                {existingOrder.created_by_name ? ` · ${existingOrder.created_by_name}` : ''}
+              </p>
+            ) : null}
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 hover:bg-brand-beige/60">
             <X className="h-5 w-5" />
@@ -1751,10 +1792,18 @@ export default function FlowerOrderFormModal({
                           </label>
                         ) : null}
                       </div>
+                      <div className="max-w-xs">
+                        <OrderAttachmentField
+                          label="Proof of balance"
+                          previewLabel="Balance proof"
+                          value={balanceProofDataUrl}
+                          onChange={(file) => void handleBalanceProofFileChange(file)}
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => void handleMarkBalancePaid()}
-                        disabled={isMarkingBalancePaid || !balancePaymentMode}
+                        disabled={isMarkingBalancePaid || !balancePaymentMode || !balanceProofDataUrl.trim()}
                         className="flower-btn-primary w-full sm:w-auto sm:self-start"
                       >
                         {isMarkingBalancePaid ? 'Saving...' : 'Mark balance paid'}
@@ -1768,6 +1817,16 @@ export default function FlowerOrderFormModal({
                       {balancePaidMessage}
                     </p>
                   ) : null}
+                </div>
+              ) : null}
+
+              {showPaidInFullViaDownpayment ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-semibold text-emerald-950">Paid in full</p>
+                  <p className="mt-1 text-sm text-emerald-900">
+                    Downpayment covers the total — no balance reference needed. Proof of DP is on
+                    the payment section below.
+                  </p>
                 </div>
               ) : null}
 
@@ -1823,17 +1882,32 @@ export default function FlowerOrderFormModal({
                           </label>
                         ) : null}
                       </div>
+                      <div className="max-w-xs">
+                        <OrderAttachmentField
+                          label="Proof of balance"
+                          previewLabel="Balance proof"
+                          value={balanceProofDataUrl || existingOrder!.proof_balance_data_url}
+                          onChange={(file) => void handleBalanceProofFileChange(file)}
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => void handleMarkBalancePaid()}
                         disabled={
                           isMarkingBalancePaid ||
                           !balancePaymentMode ||
+                          !(
+                            balanceProofDataUrl.trim() ||
+                            existingOrder!.proof_balance_data_url.trim()
+                          ) ||
                           (balancePaymentMode ===
                             (existingOrder!.balance_payment_mode || '') &&
                             (balancePaymentMode === 'cash' ||
                               balancePaymentReference.trim() ===
-                                (existingOrder!.balance_payment_reference?.trim() ?? '')))
+                                (existingOrder!.balance_payment_reference?.trim() ?? '')) &&
+                            !(balanceProofDataUrl.trim() &&
+                              balanceProofDataUrl.trim() !==
+                                (existingOrder!.proof_balance_data_url.trim() ?? '')))
                         }
                         className="flower-btn-primary w-full sm:w-auto sm:self-start"
                       >
@@ -2242,11 +2316,13 @@ export default function FlowerOrderFormModal({
                     onChange={(event) =>
                       setDownpaymentDraft(event.target.value.replace(/[^\d.]/g, ''))
                     }
-                    placeholder="0"
+                    placeholder="Required"
                     className="flower-input mt-1.5"
+                    required
                   />
                   <span className="mt-1 block text-xs text-brand-brown/60">
-                    Leave blank if no downpayment yet.
+                    Required — never ₱0. Partial DP, or enter the full total as DP if already paid
+                    in full (no balance reference needed).
                   </span>
                 </>
               )}
@@ -2319,16 +2395,13 @@ export default function FlowerOrderFormModal({
 
           <label className="mt-3 block text-sm font-medium text-brand-brown">
             Reference # (downpayment)
-            {requiresDownpaymentProof ? null : (
-              <span className="ml-1 text-xs font-normal text-brand-brown/60">(optional when DP is 0)</span>
-            )}
             <input
               type="text"
               value={form.payment_reference}
               onChange={(event) => updateField('payment_reference', event.target.value)}
               className={`flower-input mt-1.5 ${readOnlyFieldClass}`}
               readOnly={isViewMode}
-              required={requiresDownpaymentProof && !isViewMode}
+              required={!isViewMode}
             />
           </label>
 
@@ -2357,7 +2430,7 @@ export default function FlowerOrderFormModal({
               label="Proof of DP"
               previewLabel="Current DP proof"
               value={form.proof_dp_data_url}
-              optional={!requiresDownpaymentProof}
+              optional={false}
               readOnly={isViewMode}
               onEditRequest={() => setIsEditMode(true)}
               onChange={(file) => void handleFileChange('proof_dp_data_url', file)}
@@ -2374,7 +2447,9 @@ export default function FlowerOrderFormModal({
           </div>
 
           <p className="mt-3 text-xs text-brand-brown/70">
-            Input by: {form.created_by_name}
+            {existingOrder
+              ? `Input ${formatOrderInputTimestamp(existingOrder.created_at)} · ${form.created_by_name}`
+              : `Input by: ${form.created_by_name}`}
           </p>
 
 

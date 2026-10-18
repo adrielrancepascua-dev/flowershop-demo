@@ -1,25 +1,10 @@
-import { isSupabaseConfigured } from '../../lib/supabase/client';
-
 export type FlowerStorageMode = 'auto' | 'local' | 'supabase';
 
+/** This demo keeps every order, stock row, and login in browser localStorage. */
 export function getFlowerStorageMode(): FlowerStorageMode {
-  const rawMode = String(import.meta.env.VITE_FLOWER_STORAGE_MODE || 'auto').toLowerCase();
-
-  if (rawMode === 'local' || rawMode === 'supabase' || rawMode === 'auto') {
-    return rawMode;
-  }
-
-  return 'auto';
+  return 'local';
 }
 
-export function shouldUseFlowerSupabase(mode: FlowerStorageMode): boolean {
-  if (mode === 'local') {
-    return false;
-  }
-
-  if (mode === 'supabase') {
-    return true;
-  }
-
-  return isSupabaseConfigured();
+export function shouldUseFlowerSupabase(_mode?: FlowerStorageMode): boolean {
+  return false;
 }

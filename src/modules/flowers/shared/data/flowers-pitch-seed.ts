@@ -8,7 +8,7 @@ import type { FlowerSupplyTransfer } from '../types/flower-supply-transfer';
 import { toManilaDateKeyFromDate } from '../utils/flower-format';
 
 /** Bump when pitch sample data changes so existing browsers re-seed once. */
-export const FLOWER_PITCH_SEED_VERSION = 'v4';
+export const FLOWER_PITCH_SEED_VERSION = 'v5';
 
 function atManilaHour(base: Date, dayOffset: number, hour: number, minute = 0): Date {
   const dateKey = toManilaDateKeyFromDate(
@@ -34,6 +34,7 @@ type OrderDraft = Omit<
   | 'balance_payment_reference'
   | 'photo_inspo_data_url'
   | 'proof_dp_data_url'
+  | 'proof_balance_data_url'
   | 'order_form_ss_data_url'
   | 'ready_photo_data_url'
   | 'content_edited_at'
@@ -44,6 +45,7 @@ type OrderDraft = Omit<
   balance_payment_reference?: string;
   photo_inspo_data_url?: string;
   proof_dp_data_url?: string;
+  proof_balance_data_url?: string;
   order_form_ss_data_url?: string;
   ready_photo_data_url?: string;
   content_edited_at?: string | null;
@@ -61,6 +63,7 @@ function finalizeOrder(draft: OrderDraft): FlowerOrder {
     balance_payment_reference: draft.balance_payment_reference ?? '',
     photo_inspo_data_url: draft.photo_inspo_data_url || '',
     proof_dp_data_url: draft.proof_dp_data_url || '',
+    proof_balance_data_url: draft.proof_balance_data_url || '',
     order_form_ss_data_url: draft.order_form_ss_data_url || '',
     ready_photo_data_url: draft.ready_photo_data_url || '',
     content_edited_at: draft.content_edited_at ?? null,
@@ -645,7 +648,7 @@ export function buildFlowerSupplierCostsPitchSeed(now = new Date()): FlowerSuppl
 }
 
 export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventoryMovementRow[] {
-  return [
+  const rows: Array<Omit<FlowerInventoryMovementRow, 'created_by_id' | 'created_by_name'>> = [
     {
       id: 1,
       branch_id: 'branch-north',
@@ -777,6 +780,12 @@ export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventory
       created_at: iso(now, -2, 10, 55),
     },
   ];
+
+  return rows.map((row) => ({
+    ...row,
+    created_by_id: 'user-admin',
+    created_by_name: 'Demo Admin',
+  }));
 }
 
 export function buildFlowerTransferRequestsPitchSeed(now = new Date()): FlowerTransferRequest[] {

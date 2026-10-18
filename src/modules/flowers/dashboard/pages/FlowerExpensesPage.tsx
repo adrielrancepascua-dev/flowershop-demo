@@ -7,6 +7,7 @@ import {
 } from '../../../../services/flowers/expenses/flowers-expenses.service';
 import { listFlowerBranches } from '../../../../services/flowers/inventory';
 import { useFlowerAuth } from '../../../../lib/auth/FlowerAuthContext';
+import { extractSupabaseErrorMessage } from '../../../../lib/supabase/errors';
 import type { FlowerStaffExpense, FlowerExpensePaymentMode } from '../../shared/types/flower-expense';
 import {
   FLOWER_EXPENSE_PAYMENT_MODE_LABELS,
@@ -159,20 +160,25 @@ export default function FlowerExpensesPage() {
   }
 
   async function loadData() {
-    const [expenseList, branchList] = await Promise.all([
-      listFlowerStaffExpenses(isAdmin ? undefined : user?.id),
-      listFlowerBranches(),
-    ]);
-    setExpenses(expenseList);
-    setBranches(branchList);
+    try {
+      const [expenseList, branchList] = await Promise.all([
+        listFlowerStaffExpenses(isAdmin ? undefined : user?.id),
+        listFlowerBranches(),
+      ]);
+      setExpenses(expenseList);
+      setBranches(branchList);
+      setErrorMessage('');
 
-    if (!isAdmin && staffBranchId) {
-      setDraft((current) => ({
-        ...emptyDraft(staffBranchId),
-        expense_date: staffViewDate || current.expense_date || toDateKey(new Date()),
-      }));
-    } else if (!draft.branch_id && branchList[0]) {
-      setDraft(emptyDraft(branchList[0].id));
+      if (!isAdmin && staffBranchId) {
+        setDraft((current) => ({
+          ...emptyDraft(staffBranchId),
+          expense_date: staffViewDate || current.expense_date || toDateKey(new Date()),
+        }));
+      } else if (!draft.branch_id && branchList[0]) {
+        setDraft(emptyDraft(branchList[0].id));
+      }
+    } catch (error) {
+      setErrorMessage(extractSupabaseErrorMessage(error, 'Failed to load expenses.'));
     }
   }
 
@@ -236,7 +242,7 @@ export default function FlowerExpensesPage() {
       setErrorMessage('');
       await loadData();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to save expense.');
+      setErrorMessage(extractSupabaseErrorMessage(error, 'Failed to save expense.'));
     }
   }
 
@@ -283,7 +289,7 @@ export default function FlowerExpensesPage() {
       setErrorMessage('');
       await loadData();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to update expense.');
+      setErrorMessage(extractSupabaseErrorMessage(error, 'Failed to update expense.'));
     }
   }
 
@@ -301,7 +307,7 @@ export default function FlowerExpensesPage() {
       setErrorMessage('');
       await loadData();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to delete expense.');
+      setErrorMessage(extractSupabaseErrorMessage(error, 'Failed to delete expense.'));
     }
   }
 

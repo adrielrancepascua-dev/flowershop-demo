@@ -1,16 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardCopy, RotateCcw } from 'lucide-react';
+import { ClipboardCopy, ChevronDown, RotateCcw } from 'lucide-react';
 import { listFlowerOrders } from '../../../../services/flowers/orders';
 import type { FlowerOrder } from '../../shared/types/flower-order';
 import type { FlowerProduct } from '../../shared/types/flower-product';
 import {
+  formatOrderInputTimestamp,
+  formatPickupDateTimeLocal,
+  summarizeFlowerLines,
+} from '../../shared/utils/flower-format';
+import {
   buildSupplierOrderClipboardText,
   buildSupplierOrderSummary,
   defaultSupplierDateRange,
+  formatSupplierSummaryDateLabel,
   formatSupplierSummaryDateRange,
   readSupplierRoundSettings,
+  readSupplierStampedDates,
+  stampSupplierDateRange,
   SUPPLIER_ROUND_STEP_OPTIONS,
+  unstampSupplierDateRange,
   writeSupplierRoundSettings,
+  writeSupplierStampedDates,
   type SupplierSummaryLine,
 } from '../../shared/utils/flower-supplier-order-summary';
 
@@ -96,6 +106,18 @@ function EditableOrderLine({
   );
 }
 
+function formatStampedDaysLabel(keys: string[]): string {
+  if (keys.length === 0) {
+    return '';
+  }
+
+  if (keys.length === 1) {
+    return formatSupplierSummaryDateLabel(keys[0]);
+  }
+
+  return `${formatSupplierSummaryDateLabel(keys[0])} – ${formatSupplierSummaryDateLabel(keys[keys.length - 1])}`;
+}
+
 export default function SupplierOrderSummaryPanel({
   products,
 }: {
@@ -110,6 +132,7 @@ export default function SupplierOrderSummaryPanel({
   const [loadError, setLoadError] = useState('');
   const [copyMessage, setCopyMessage] = useState('');
   const [orderOverrides, setOrderOverrides] = useState<Record<string, number>>({});
+  const [stampedDates, setStampedDates] = useState(() => readSupplierStampedDates());
 
   useEffect(() => {
     let cancelled = false;
@@ -158,7 +181,7 @@ export default function SupplierOrderSummaryPanel({
 
   useEffect(() => {
     setOrderOverrides({});
-  }, [dateFrom, dateTo, roundSettings.flowerRoundStep, roundSettings.miscRoundStep]);
+  }, [dateFrom, dateTo, roundSettings.flowerRoundStep, roundSettings.miscRoundStep, stampedDates]);
 
   const summary = useMemo(
     () =>
@@ -166,8 +189,9 @@ export default function SupplierOrderSummaryPanel({
         dateFrom,
         dateTo,
         roundSettings,
+        stampedDates,
       }),
-    [orders, products, dateFrom, dateTo, roundSettings],
+    [orders, products, dateFrom, dateTo, roundSettings, stampedDates],
   );
 
   const orderQuantities = useMemo(() => {
@@ -193,7 +217,24 @@ export default function SupplierOrderSummaryPanel({
     setOrderOverrides({});
   }
 
+  function stampCurrentRange() {
+    if (summary.stamp.status === 'done') {
+      return;
+    }
+
+    const next = stampSupplierDateRange(stampedDates, dateFrom, dateTo);
+    writeSupplierStampedDates(next);
+    setStampedDates(next);
+  }
+
+  function redoCurrentRange() {
+    const next = unstampSupplierDateRange(stampedDates, dateFrom, dateTo);
+    writeSupplierStampedDates(next);
+    setStampedDates(next);
+  }
+
   const grandTotalLines = [...summary.grandTotalFlowers, ...summary.grandTotalFillers];
+  const stampStatus = summary.stamp.status;
   const hasResults = summary.orderCount > 0;
 
   return (
@@ -203,8 +244,11 @@ export default function SupplierOrderSummaryPanel({
           <div>
             <h2 className="text-lg font-semibold text-brand-dark">Supplier order summary</h2>
             <p className="mt-1 text-sm text-brand-brown/70">
-              Summarize reserved flowers and fillers per branch, then copy a rounded order list for
-              your supplier.
+              Pick the pickup dates, copy, then tap{' '}
+              <span className="font-semibold">Already ordered these</span> to stamp that range{' '}
+              <span className="font-semibold">DONE</span>. Those days stay void even if you open a
+              wider range. <span className="font-semibold">Redo</span> unstamps only the dates you
+              are looking at.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
@@ -283,6 +327,20 @@ export default function SupplierOrderSummaryPanel({
             <ClipboardCopy className="mr-1.5 inline h-4 w-4" />
             Copy for supplier
           </button>
+          {stampStatus === 'done' ? (
+            <span className="inline-flex min-h-[44px] items-center rounded-xl border border-brand-muted bg-brand-beige/50 px-4 text-sm font-semibold uppercase tracking-[0.16em] text-brand-brown">
+              Done
+            </span>
+          ) : (
+            <button type="button" onClick={stampCurrentRange} className="flower-btn-secondary">
+              Already ordered these
+            </button>
+          )}
+          {stampStatus !== 'open' ? (
+            <button type="button" onClick={redoCurrentRange} className="flower-btn-secondary">
+              Redo
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={resetAllOverrides}
@@ -299,18 +357,74 @@ export default function SupplierOrderSummaryPanel({
 
         {!loading && !loadError ? (
           <p className="mt-3 text-sm text-brand-brown/70">
-            {formatSupplierSummaryDateRange(dateFrom, dateTo)} · {summary.orderCount} reserved order
-            {summary.orderCount === 1 ? '' : 's'} · all branches
+            {formatSupplierSummaryDateRange(dateFrom, dateTo)}
+            {stampStatus === 'done'
+              ? ' · DONE — this pickup range is already stamped'
+              : stampStatus === 'partial'
+                ? ` · ${formatStampedDaysLabel(summary.stamp.stampedKeys)} already DONE · showing ${
+                    summary.orderCount
+                  } remaining order${summary.orderCount === 1 ? '' : 's'}`
+                : ` · ${summary.orderCount} reserved order${summary.orderCount === 1 ? '' : 's'} · all branches`}
           </p>
         ) : null}
       </div>
 
+      {!loading && stampStatus !== 'done' && summary.visibleOrders.length > 0 ? (
+        <details className="group rounded-2xl border border-brand-muted/40 bg-white p-4 sm:p-5">
+          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold text-brand-dark">
+                  {stampStatus === 'partial' ? 'Still to order' : 'Orders in this range'}
+                  <span className="ml-2 text-sm font-normal text-brand-brown/60">
+                    {summary.visibleOrders.length}
+                  </span>
+                </h3>
+                <p className="mt-0.5 text-sm text-brand-brown/70">
+                  Tap to check which customer orders are in this copy. Collapsed so it stays short.
+                </p>
+              </div>
+              <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-brand-brown/55 transition group-open:rotate-180" />
+            </div>
+          </summary>
+          <ul className="mt-3 divide-y divide-brand-muted/30">
+            {summary.visibleOrders.map((order) => (
+              <li key={order.id} className="py-2.5 first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-semibold text-brand-dark">{order.receiver}</p>
+                  <p className="text-xs text-brand-brown/65">
+                    Input {formatOrderInputTimestamp(order.created_at)}
+                    {order.created_by_name ? ` · ${order.created_by_name}` : ''}
+                  </p>
+                </div>
+                <p className="mt-0.5 text-xs text-brand-brown/65">
+                  {order.branch_name} · pickup {formatPickupDateTimeLocal(order.scheduled_for)}
+                </p>
+                <p className="mt-1 truncate text-sm text-brand-dark" title={summarizeFlowerLines(order.items)}>
+                  {summarizeFlowerLines(order.items, 3)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
       {!loading && !hasResults && !loadError ? (
         <div className="rounded-2xl border border-dashed border-brand-muted/50 bg-brand-beige/20 px-4 py-10 text-center">
-          <p className="text-sm text-brand-brown/70">
-            No reserved orders in this date range. Try widening the dates or check that orders are
-            not cancelled.
-          </p>
+          {stampStatus === 'done' ? (
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand-brown">Done</p>
+              <p className="mt-2 text-sm text-brand-brown/70">
+                {formatSupplierSummaryDateRange(dateFrom, dateTo)} is already stamped. Redo to
+                unstamp these dates.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-brand-brown/70">
+              No reserved orders in this date range. Try widening the dates or check that orders are
+              not cancelled.
+            </p>
+          )}
         </div>
       ) : null}
 
@@ -322,7 +436,9 @@ export default function SupplierOrderSummaryPanel({
               className="rounded-2xl border border-brand-muted/40 bg-white p-4 sm:p-5"
             >
               <h3 className="text-base font-semibold text-brand-dark">{branch.branchName}</h3>
-              <p className="mt-0.5 text-xs text-brand-brown/60">Exact reserved totals</p>
+              <p className="mt-0.5 text-xs text-brand-brown/60">
+                {stampStatus === 'partial' ? 'Unstamped days only' : 'Exact reserved totals'}
+              </p>
 
               {branch.flowers.length > 0 ? (
                 <div className="mt-4">
@@ -356,7 +472,9 @@ export default function SupplierOrderSummaryPanel({
             <div>
               <h3 className="text-base font-semibold text-brand-dark">To order (all branches)</h3>
               <p className="mt-0.5 text-sm text-brand-brown/65">
-                Rounded totals — edit any quantity before copying to your supplier.
+                {stampStatus === 'partial'
+                  ? 'Only unstamped pickup days — flowers, fillers, and misc.'
+                  : 'Rounded totals — edit any quantity before copying to your supplier.'}
               </p>
             </div>
           </div>

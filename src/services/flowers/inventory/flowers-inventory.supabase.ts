@@ -60,6 +60,8 @@ type InventoryMovementDbRow = {
   new_on_hand: number;
   note: string;
   created_at: string;
+  created_by_id?: string | null;
+  created_by_name?: string | null;
 };
 
 function requireSupabaseClient() {
@@ -358,6 +360,8 @@ export async function listFlowerInventoryMovementsSupabase(
     new_on_hand: Number(row.new_on_hand),
     note: row.note ?? '',
     created_at: row.created_at,
+    created_by_id: row.created_by_id ?? '',
+    created_by_name: row.created_by_name ?? '',
   }));
 }
 

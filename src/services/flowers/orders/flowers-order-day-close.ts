@@ -1,9 +1,18 @@
-import type { FlowerOrder } from '../../../modules/flowers/shared/types/flower-order';
+import type { FlowerOrder, FlowerOrderStatus } from '../../../modules/flowers/shared/types/flower-order';
 import { FLOWER_ORDER_TERMINAL_STATUSES } from '../../../modules/flowers/shared/types/flower-order';
-import { scheduledForToDateKey } from '../../../modules/flowers/shared/utils/flower-format';
+import { getLocalDayBoundsIso, scheduledForToDateKey, toManilaDateKeyFromDate } from '../../../modules/flowers/shared/utils/flower-format';
 
-/** Terminal orders deduct at 7:00 PM Manila on their pickup date. */
+/** Finished (terminal) orders deduct at 7:00 PM Manila on their pickup date (force deduct can run earlier). */
 export const INVENTORY_DEDUCTION_HOUR_MANILA = 19;
+
+/**
+ * Open-order restore snapshots Not started/Ready, then loops slowly.
+ * If staff finishes the order (and deducts) mid-loop, skip — otherwise we void
+ * the fresh order_deduct and leave inventory_deducted stuck true.
+ */
+export function shouldSkipOpenOrderInventoryRestore(liveStatus: FlowerOrderStatus): boolean {
+  return liveStatus === 'cancelled' || FLOWER_ORDER_TERMINAL_STATUSES.includes(liveStatus);
+}
 
 export function getPickupDateKey(iso: string): string {
   return scheduledForToDateKey(iso);
@@ -76,4 +85,53 @@ export function getOrdersPendingInventoryDeduction(
       FLOWER_ORDER_TERMINAL_STATUSES.includes(order.status) &&
       !order.inventory_deducted,
   );
+}
+
+/** How far back 7 PM should keep reconciling already-deducted orders. */
+export const INVENTORY_DEDUCTION_RECONCILE_LOOKBACK_DAYS = 14;
+
+export function getInventoryDeductionLookbackStartIso(nowMs: number = Date.now()): string {
+  const lookbackMs = nowMs - INVENTORY_DEDUCTION_RECONCILE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+  return getLocalDayBoundsIso(toManilaDateKeyFromDate(new Date(lookbackMs))).startIso;
+}
+
+export type InventoryDeductionOrderRef = {
+  scheduled_for: string;
+  branch_id: string;
+  status: FlowerOrder['status'];
+  inventory_deducted: boolean;
+};
+
+/**
+ * Date+branch buckets that still need a first-time 7 PM deduct.
+ * Already-deducted orders are not revisited — historical reconcile re-deducted live stock.
+ */
+export function getInventoryDeductionBuckets(
+  orders: InventoryDeductionOrderRef[],
+  nowMs: number = Date.now(),
+  options?: { skipTimeGate?: boolean },
+): Array<{ dateKey: string; branchId: string }> {
+  const buckets = new Set<string>();
+
+  for (const order of orders) {
+    if (order.status === 'cancelled' || order.inventory_deducted) {
+      continue;
+    }
+
+    if (!FLOWER_ORDER_TERMINAL_STATUSES.includes(order.status)) {
+      continue;
+    }
+
+    const dateKey = getPickupDateKey(order.scheduled_for);
+    if (!options?.skipTimeGate && !isInventoryDeductionDue(dateKey, nowMs)) {
+      continue;
+    }
+
+    buckets.add(`${dateKey}|${order.branch_id}`);
+  }
+
+  return [...buckets].map((bucket) => {
+    const [dateKey, branchId] = bucket.split('|');
+    return { dateKey, branchId };
+  });
 }

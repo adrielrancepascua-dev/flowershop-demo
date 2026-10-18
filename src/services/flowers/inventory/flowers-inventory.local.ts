@@ -29,7 +29,8 @@ import {
   normalizeFlowerProductColor,
 } from '../../../modules/flowers/shared/utils/flower-product-colors';
 import { normalizeFlowerProductKind } from '../../../modules/flowers/shared/utils/flower-product-kind';
-import { formatInventoryOrderDeductNote, formatInventoryOrderVoidNote } from '../../../modules/flowers/shared/utils/flower-format';
+import { formatInventoryOrderDeductNote, formatInventoryOrderVoidNote, parseInventoryMovementOrderId } from '../../../modules/flowers/shared/utils/flower-format';
+import { getStoredFlowerSession } from '../../../lib/auth/flower-auth.service';
 
 const INVENTORY_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_v3';
 const MOVEMENTS_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_movements_v2';
@@ -100,7 +101,13 @@ function readMovementsFromStorage(): FlowerInventoryMovementRow[] {
     }
 
     const parsed = JSON.parse(raw) as FlowerInventoryMovementRow[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed)
+      ? parsed.map((row) => ({
+          ...row,
+          created_by_id: row.created_by_id ?? '',
+          created_by_name: row.created_by_name ?? '',
+        }))
+      : [];
   } catch {
     return buildFlowerMovementsPitchSeed();
   }
@@ -181,6 +188,14 @@ export async function listFlowerInventoryMovementsLocal(
       return false;
     }
 
+    if (options.productId && movement.product_id !== options.productId) {
+      return false;
+    }
+
+    if (options.orderId && parseInventoryMovementOrderId(movement.note) !== options.orderId) {
+      return false;
+    }
+
     if (options.fromDate) {
       const fromMs = new Date(`${options.fromDate}T00:00:00`).getTime();
       if (new Date(movement.created_at).getTime() < fromMs) {
@@ -210,13 +225,16 @@ async function applyStockChange(input: {
   movementType: FlowerInventoryMovementRow['movement_type'];
   note: string;
   allowNegative?: boolean;
+  createdById?: string;
+  createdByName?: string;
 }): Promise<{ previousOnHand: number; newOnHand: number }> {
   const stock = readStockFromStorage();
   const branchStock = stock[input.branchId] ?? {};
   const previousOnHand = branchStock[input.productId] ?? 0;
   const newOnHand = previousOnHand + input.delta;
 
-  if (!input.allowNegative && newOnHand < 0) {
+  // Only block outbound moves; inbound must still credit already-negative stock.
+  if (!input.allowNegative && input.delta < 0 && newOnHand < 0) {
     throw new Error(
       `Insufficient stock for ${getProductName(input.productId)}. Available: ${previousOnHand}.`,
     );
@@ -226,6 +244,7 @@ async function applyStockChange(input: {
   stock[input.branchId] = branchStock;
   writeStockToStorage(stock);
 
+  const user = getStoredFlowerSession()?.user;
   appendMovement({
     branch_id: input.branchId,
     branch_name: getBranchName(input.branchId),
@@ -237,6 +256,8 @@ async function applyStockChange(input: {
     new_on_hand: newOnHand,
     note: input.note,
     created_at: new Date().toISOString(),
+    created_by_id: input.createdById || user?.id || '',
+    created_by_name: input.createdByName || user?.display_name || '',
   });
 
   return { previousOnHand, newOnHand };
@@ -252,6 +273,8 @@ export async function adjustFlowerInventoryLocal(input: AdjustFlowerInventoryInp
     movementType: input.movementType,
     note: input.note?.trim() ?? '',
     allowNegative: true,
+    createdById: input.createdById,
+    createdByName: input.createdByName,
   });
 }
 
@@ -296,7 +319,9 @@ export async function validateFlowerOrderStockLocal(
   _items: Array<{ product_id: string; item_name: string; quantity: number }>,
   _creditByProductId: Record<string, number> = {},
 ): Promise<void> {
-  return;
+  void _branchId;
+  void _items;
+  void _creditByProductId;
 }
 
 /** Inter-branch stock transfer between branches. */
@@ -313,27 +338,66 @@ export async function transferFlowerInventoryLocal(
 
   const note = input.note?.trim() || `Transfer to ${getBranchName(input.toBranchId)}`;
 
-  for (const item of input.items) {
-    if (item.quantity <= 0) {
-      continue;
+  const completed: Array<{ productId: string; quantity: number }> = [];
+
+  try {
+    for (const item of input.items) {
+      if (item.quantity <= 0) {
+        continue;
+      }
+
+      await applyStockChange({
+        branchId: input.fromBranchId,
+        productId: item.productId,
+        delta: -item.quantity,
+        movementType: 'transfer_out',
+        note,
+        allowNegative: true,
+      });
+
+      try {
+        await applyStockChange({
+          branchId: input.toBranchId,
+          productId: item.productId,
+          delta: item.quantity,
+          movementType: 'transfer_in',
+          note: `From ${getBranchName(input.fromBranchId)}`,
+          allowNegative: true,
+        });
+      } catch (transferInError) {
+        await applyStockChange({
+          branchId: input.fromBranchId,
+          productId: item.productId,
+          delta: item.quantity,
+          movementType: 'stock_in',
+          note: `Rollback orphan transfer_out after failed transfer_in · ${note}`,
+          allowNegative: true,
+        });
+        throw transferInError;
+      }
+
+      completed.push({ productId: item.productId, quantity: item.quantity });
     }
-
-    await applyStockChange({
-      branchId: input.fromBranchId,
-      productId: item.productId,
-      delta: -item.quantity,
-      movementType: 'transfer_out',
-      note,
-      allowNegative: true,
-    });
-
-    await applyStockChange({
-      branchId: input.toBranchId,
-      productId: item.productId,
-      delta: item.quantity,
-      movementType: 'transfer_in',
-      note: `From ${getBranchName(input.fromBranchId)}`,
-    });
+  } catch (error) {
+    for (const done of [...completed].reverse()) {
+      await applyStockChange({
+        branchId: input.toBranchId,
+        productId: done.productId,
+        delta: -done.quantity,
+        movementType: 'transfer_out',
+        note: `Rollback completed transfer after later failure · ${note}`,
+        allowNegative: true,
+      });
+      await applyStockChange({
+        branchId: input.fromBranchId,
+        productId: done.productId,
+        delta: done.quantity,
+        movementType: 'transfer_in',
+        note: `Rollback completed transfer after later failure · ${note}`,
+        allowNegative: true,
+      });
+    }
+    throw error;
   }
 }
 

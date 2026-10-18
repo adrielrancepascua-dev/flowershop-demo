@@ -223,6 +223,18 @@ export function parseInventoryMovementOrderId(note: string): string | null {
   return match?.[1] ?? null;
 }
 
+/** PostgREST/SQL LIKE pattern that matches notes for one order without prefix collisions. */
+export function inventoryMovementNoteLikePatternForOrderId(orderId: string): string {
+  const trimmed = orderId.trim();
+  if (!trimmed) {
+    return '';
+  }
+  // Notes are always: "Order <id> · <receiver> · …"
+  // Escape LIKE wildcards so ids never match broadly.
+  const escaped = trimmed.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  return `Order ${escaped} ·%`;
+}
+
 export function parseInventoryMovementReceiver(note: string): string | null {
   const match = note.match(/Order\s+\S+\s+·\s+(.+?)\s+·\s+day-close/i);
   return match?.[1]?.trim() || null;
@@ -246,6 +258,24 @@ export function formatInventoryOrderEditDeductNote(orderId: string, receiver: st
 export function formatInventoryOrderEditRestoreNote(orderId: string, receiver: string): string {
   const trimmedReceiver = receiver.trim() || 'Unknown';
   return `Order ${orderId} · ${trimmedReceiver} · order edit restore`;
+}
+
+export function formatInventoryHistoricalReconcileUndoNote(orderId: string, receiver: string): string {
+  const trimmedReceiver = receiver.trim() || 'Unknown';
+  return `Order ${orderId} · ${trimmedReceiver} · historical reconcile undo`;
+}
+
+export function formatInventoryOverDeductRestoreNote(orderId: string, receiver: string): string {
+  const trimmedReceiver = receiver.trim() || 'Unknown';
+  return `Order ${orderId} · ${trimmedReceiver} · over-deduct restore`;
+}
+
+export function isHistoricalReconcileUndoNote(note: string): boolean {
+  return /historical reconcile undo/i.test(note);
+}
+
+export function isOverDeductRestoreNote(note: string): boolean {
+  return /over-deduct restore/i.test(note);
 }
 
 export function resolveInventoryMovementReceiver(
@@ -274,6 +304,120 @@ export function formatInventoryMovementTimestamp(iso: string): string {
     minute: '2-digit',
     hour12: true,
   });
+}
+
+/** When the order was typed into the system (not pickup/delivery time). Manila clock. */
+export function formatOrderInputTimestamp(iso: string, now: Date = new Date()): string {
+  if (!iso) {
+    return '';
+  }
+
+  const date = parseFlowerTimestamp(iso);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const timePart = date.toLocaleTimeString('en-PH', {
+    timeZone: FLOWER_BUSINESS_TIMEZONE,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  if (toManilaDateKeyFromDate(date) === toManilaDateKeyFromDate(now)) {
+    return `today, ${timePart}`;
+  }
+
+  const datePart = date.toLocaleDateString('en-PH', {
+    timeZone: FLOWER_BUSINESS_TIMEZONE,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  return `${datePart}, ${timePart}`;
+}
+
+export function isOrderInputToday(iso: string, now: Date = new Date()): boolean {
+  if (!iso) {
+    return false;
+  }
+
+  const date = parseFlowerTimestamp(iso);
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  return toManilaDateKeyFromDate(date) === toManilaDateKeyFromDate(now);
+}
+
+/** `datetime-local` value for a timestamp in Philippines time. */
+export function toManilaDateTimeLocalValue(iso: string): string {
+  if (!iso) {
+    return '';
+  }
+
+  const date = parseFlowerTimestamp(iso);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: FLOWER_BUSINESS_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(date)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+/** Parse a Manila `datetime-local` value (`YYYY-MM-DDTHH:mm`) into an ISO timestamp. */
+export function fromManilaDateTimeLocalValue(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::\d{2})?$/);
+  if (!match) {
+    return '';
+  }
+
+  const date = new Date(`${match[1]}:00+08:00`);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toISOString();
+}
+
+export function formatInventoryMovementActor(
+  movement: { movement_type: string; created_by_name?: string | null },
+): string {
+  const name = movement.created_by_name?.trim() ?? '';
+
+  if (movement.movement_type === 'order_deduct') {
+    return name ? `Order deduct · ran on ${name}'s session` : 'Order deduct (auto)';
+  }
+
+  if (movement.movement_type === 'transfer_in' || movement.movement_type === 'transfer_out') {
+    return name || 'Transfer';
+  }
+
+  if (name) {
+    return name;
+  }
+
+  return 'Unknown (before names were logged)';
 }
 
 /** Collapse duplicate day-close order deductions already stored before the deduct guard fix. */
@@ -323,6 +467,12 @@ export const PRICE_FORMATTER = new Intl.NumberFormat('en-PH', {
 
 export function summarizeFlowerLines(
   items: Array<{ item_name: string; quantity: number }>,
+  limit?: number,
 ): string {
-  return items.map((item) => `${item.item_name} x${item.quantity}`).join(', ');
+  const lines = items.map((item) => `${item.item_name} x${item.quantity}`);
+  if (!limit || lines.length <= limit) {
+    return lines.join(', ');
+  }
+
+  return `${lines.slice(0, limit).join(', ')} +${lines.length - limit} more`;
 }

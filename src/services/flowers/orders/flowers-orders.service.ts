@@ -14,6 +14,9 @@ import {
   getFlowerOrderLocal,
   listFlowerOrdersLocal,
   runDueInventoryDeductionsLocal,
+  forceRunInventoryDeductionsLocal,
+  restoreHistoricalReconcileDeductionsLocal,
+  restoreWronglyDeductedOpenOrdersLocal,
   updateFlowerOrderLocal,
   updateFlowerOrderReadyPhotoLocal,
   updateFlowerOrderStatusLocal,
@@ -110,6 +113,7 @@ export async function markFlowerOrderBalancePaid(
   orderId: string,
   balancePaymentMode: FlowerPaymentMode,
   balancePaymentReference = '',
+  proofBalanceDataUrl = '',
 ): Promise<FlowerOrder> {
   return withSupabaseOrders(
     async () => {
@@ -118,10 +122,16 @@ export async function markFlowerOrderBalancePaid(
         orderId,
         balancePaymentMode,
         balancePaymentReference,
+        proofBalanceDataUrl,
       );
     },
     () =>
-      markFlowerOrderBalancePaidLocal(orderId, balancePaymentMode, balancePaymentReference),
+      markFlowerOrderBalancePaidLocal(
+        orderId,
+        balancePaymentMode,
+        balancePaymentReference,
+        proofBalanceDataUrl,
+      ),
   );
 }
 
@@ -145,12 +155,50 @@ export async function getFlowerDayCloseStatus(dateKey: string, branchId?: string
   );
 }
 
-export async function runDueInventoryDeductions(): Promise<void> {
+export async function restoreHistoricalReconcileDeductions(): Promise<{
+  restoredUnits: number;
+  productCount: number;
+}> {
+  return withSupabaseOrders(
+    async () => {
+      const { restoreHistoricalReconcileDeductionsSupabase } = await import('./flowers-orders.supabase');
+      return restoreHistoricalReconcileDeductionsSupabase();
+    },
+    () => restoreHistoricalReconcileDeductionsLocal(),
+  );
+}
+
+/** Undo Not started / Ready orders that PR #25 wrongly deducted overnight. */
+export async function restoreWronglyDeductedOpenOrders(): Promise<{
+  restoredOrders: number;
+  restoredUnits: number;
+}> {
+  return withSupabaseOrders(
+    async () => {
+      const { restoreWronglyDeductedOpenOrdersSupabase } = await import('./flowers-orders.supabase');
+      return restoreWronglyDeductedOpenOrdersSupabase();
+    },
+    () => restoreWronglyDeductedOpenOrdersLocal(),
+  );
+}
+
+export async function runDueInventoryDeductions(): Promise<number> {
   return withSupabaseOrders(
     async () => {
       const { runDueInventoryDeductionsSupabase } = await import('./flowers-orders.supabase');
       return runDueInventoryDeductionsSupabase();
     },
     () => runDueInventoryDeductionsLocal(),
+  );
+}
+
+/** Admin: restore bad open-order deducts, then deduct finished pending orders now. */
+export async function forceRunInventoryDeductions(): Promise<number> {
+  return withSupabaseOrders(
+    async () => {
+      const { forceRunInventoryDeductionsSupabase } = await import('./flowers-orders.supabase');
+      return forceRunInventoryDeductionsSupabase();
+    },
+    () => forceRunInventoryDeductionsLocal(),
   );
 }

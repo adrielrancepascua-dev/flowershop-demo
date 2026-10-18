@@ -65,6 +65,7 @@ type OrderDbRow = {
   notes: string;
   photo_inspo_data_url: string;
   proof_dp_data_url: string;
+  proof_balance_data_url?: string | null;
   order_form_ss_data_url: string;
   ready_photo_data_url: string;
   created_by_id: string;
@@ -210,6 +211,7 @@ function mapOrderRow(row: OrderDbRow): FlowerOrder {
     notes: row.notes ?? '',
     photo_inspo_data_url: row.photo_inspo_data_url ?? '',
     proof_dp_data_url: row.proof_dp_data_url ?? '',
+    proof_balance_data_url: row.proof_balance_data_url ?? '',
     order_form_ss_data_url: row.order_form_ss_data_url ?? '',
     ready_photo_data_url: row.ready_photo_data_url ?? '',
     created_at: row.created_at,
@@ -747,6 +749,7 @@ export async function markFlowerOrderBalancePaidSupabase(
   orderId: string,
   balancePaymentMode: FlowerPaymentMode,
   balancePaymentReference = '',
+  proofBalanceDataUrl = '',
 ): Promise<FlowerOrder> {
   const supabase = await requireAuthenticatedSupabaseClient();
   const existing = await fetchOrderById(orderId);
@@ -789,6 +792,7 @@ export async function markFlowerOrderBalancePaidSupabase(
             balance_payment_mode: normalizedMode,
             balance_payment_reference:
               normalizedMode === 'cash' ? '' : balancePaymentReference.trim(),
+            proof_balance_data_url: proofBalanceDataUrl.trim() || existing.proof_balance_data_url,
           },
     )
     .eq('id', orderId)
@@ -832,7 +836,7 @@ export async function getFlowerDayCloseStatusSupabase(
   return computeFlowerDayCloseStatus(orders, dateKey, branchId);
 }
 
-export async function runDueInventoryDeductionsSupabase(): Promise<void> {
+export async function runDueInventoryDeductionsSupabase(): Promise<number> {
   const supabase = await requireAuthenticatedSupabaseClient();
   const { data, error } = await supabase
     .from('flower_orders')
@@ -862,4 +866,24 @@ export async function runDueInventoryDeductionsSupabase(): Promise<void> {
       console.warn('Scheduled inventory deduction failed.', { dateKey, branchId, deductError });
     }
   }
+
+  return buckets.size;
+}
+
+export async function restoreHistoricalReconcileDeductionsSupabase(): Promise<{
+  restoredUnits: number;
+  productCount: number;
+}> {
+  throw new Error('This demo stores data locally and does not use Supabase.');
+}
+
+export async function restoreWronglyDeductedOpenOrdersSupabase(): Promise<{
+  restoredOrders: number;
+  restoredUnits: number;
+}> {
+  throw new Error('This demo stores data locally and does not use Supabase.');
+}
+
+export async function forceRunInventoryDeductionsSupabase(): Promise<number> {
+  throw new Error('This demo stores data locally and does not use Supabase.');
 }

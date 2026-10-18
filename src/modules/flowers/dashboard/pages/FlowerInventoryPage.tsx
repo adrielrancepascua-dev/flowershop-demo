@@ -27,10 +27,19 @@ import FlowerInventoryStockPrint from '../components/FlowerPrintableInventorySto
 import FlowerPrintControls from '../../shared/components/FlowerPrintControls';
 import { FlowerBranchTransferPrintDocument } from '../../shared/components/FlowerThermalPrint';
 import { Minus, Plus, ArrowLeftRight, Package, ChevronDown, Check, X, Trash2, Search } from 'lucide-react';
+import FlowerInventoryProductLogPanel from '../components/FlowerInventoryProductLogPanel';
+import FlowerConfirmDialog from '../components/FlowerConfirmDialog';
+import { listFlowerOrders, forceRunInventoryDeductions } from '../../../../services/flowers/orders';
+import { soldPendingDeductionByProductId } from '../../shared/utils/flower-daily-inventory';
+import {
+  INVENTORY_AUTO_DEDUCT_PAUSED,
+} from '../../shared/utils/flower-inventory-deduct';
 import {
   dedupeInventoryMovementRows,
+  formatInventoryMovementActor,
   formatInventoryMovementTimestamp,
   parseFlowerTimestamp,
+  toManilaDateKeyFromDate,
   INVENTORY_MOVEMENT_TYPE_BADGES,
   INVENTORY_MOVEMENT_TYPE_LABELS,
   parseInventoryMovementOrderId,
@@ -104,11 +113,13 @@ function InventoryFlowerCategoryHeader({
   rows,
   expanded,
   onToggle,
+  onOpenLog,
 }: {
   flowerType: string;
   rows: FlowerInventoryStockRow[];
   expanded: boolean;
   onToggle: () => void;
+  onOpenLog?: (row: FlowerInventoryStockRow) => void;
 }) {
   const unitTotal = rows.reduce((sum, row) => sum + row.on_hand, 0);
   const panelId = `inventory-category-${flowerType.replace(/\s+/g, '-').toLowerCase()}`;
@@ -135,16 +146,21 @@ function InventoryFlowerCategoryHeader({
           </span>
         </div>
         <p className="mt-0.5 text-xs text-brand-brown/65">
-          {rows.length} colors · {unitTotal} units · {expanded ? 'tap to collapse' : 'tap to expand'}
+          {rows.length} colors · {unitTotal} units · {expanded ? 'tap to collapse' : 'tap a color for its log'}
         </p>
         {!expanded ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {rows.map((row) => {
               const normalizedColor = normalizeFlowerProductColor(row.product_color);
               return (
-                <span
+                <button
                   key={row.product_id}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-brand-muted/45 bg-white px-2 py-0.5 text-xs font-semibold text-brand-dark"
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-brand-muted/45 bg-white px-2 py-0.5 text-xs font-semibold text-brand-dark hover:border-brand-accent"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenLog?.(row);
+                  }}
                 >
                   <span
                     className={`h-2.5 w-2.5 rounded-full ${flowerProductColorSwatchClass(normalizedColor)}`}
@@ -152,7 +168,7 @@ function InventoryFlowerCategoryHeader({
                   />
                   {normalizedColor}
                   <span className="font-normal text-brand-brown/60">({row.on_hand})</span>
-                </span>
+                </button>
               );
             })}
           </div>
@@ -167,6 +183,7 @@ function InventoryFlowerCategoryMobileGroup({
   isAllBranchesView,
   isAdmin,
   onAdjust,
+  onOpenLog,
 }: {
   section: { flowerType: string; rows: FlowerInventoryStockRow[] };
   isAllBranchesView: boolean;
@@ -177,6 +194,7 @@ function InventoryFlowerCategoryMobileGroup({
     movementType: 'stock_in' | 'stock_out',
     quantity: number,
   ) => Promise<void>;
+  onOpenLog: (row: FlowerInventoryStockRow) => void;
 }) {
   const isCategory = section.rows.length > 1;
   const [expanded, setExpanded] = useState(false);
@@ -194,6 +212,7 @@ function InventoryFlowerCategoryMobileGroup({
         isAllBranchesView={isAllBranchesView}
         isAdmin={isAdmin}
         onAdjust={onAdjust}
+        onOpenLog={onOpenLog}
         showColorVariant={false}
       />
     );
@@ -211,6 +230,7 @@ function InventoryFlowerCategoryMobileGroup({
           rows={section.rows}
           expanded={expanded}
           onToggle={() => setExpanded((current) => !current)}
+          onOpenLog={onOpenLog}
         />
       </div>
 
@@ -223,6 +243,7 @@ function InventoryFlowerCategoryMobileGroup({
               isAllBranchesView={isAllBranchesView}
               isAdmin={isAdmin}
               onAdjust={onAdjust}
+              onOpenLog={onOpenLog}
               showColorVariant
               nested
             />
@@ -238,6 +259,7 @@ function InventoryFlowerMobileStockCard({
   isAllBranchesView,
   isAdmin,
   onAdjust,
+  onOpenLog,
   showColorVariant,
   nested = false,
 }: {
@@ -250,12 +272,17 @@ function InventoryFlowerMobileStockCard({
     movementType: 'stock_in' | 'stock_out',
     quantity: number,
   ) => Promise<void>;
+  onOpenLog: (row: FlowerInventoryStockRow) => void;
   showColorVariant: boolean;
   nested?: boolean;
 }) {
   return (
     <div className={nested ? 'px-4 py-3' : 'flower-card p-4'}>
-      <div className="flex items-start justify-between gap-3">
+      <button
+        type="button"
+        onClick={() => onOpenLog(row)}
+        className="flex w-full items-start justify-between gap-3 text-left"
+      >
         <div className="min-w-0 flex-1">
           {showColorVariant ? (
             <InventoryColorVariantLabel color={row.product_color} />
@@ -264,6 +291,7 @@ function InventoryFlowerMobileStockCard({
           )}
           <p className="mt-1 text-xs text-brand-brown/70">
             {isAllBranchesView ? 'All branches total' : row.branch_name}
+            <span className="text-brand-accent"> · tap for log</span>
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -278,7 +306,7 @@ function InventoryFlowerMobileStockCard({
             {row.on_hand}
           </p>
         </div>
-      </div>
+      </button>
       {isAdmin && !isAllBranchesView ? (
         <div className="mt-4 border-t border-brand-muted/30 pt-4">
           <StockAdjustControls branchId={row.branch_id} productId={row.product_id} onAdjust={onAdjust} />
@@ -294,6 +322,7 @@ function InventoryFlowerCategoryDesktopGroup({
   isAdmin,
   stockTableColSpan,
   onAdjust,
+  onOpenLog,
 }: {
   section: { flowerType: string; rows: FlowerInventoryStockRow[] };
   isAllBranchesView: boolean;
@@ -305,6 +334,7 @@ function InventoryFlowerCategoryDesktopGroup({
     movementType: 'stock_in' | 'stock_out',
     quantity: number,
   ) => Promise<void>;
+  onOpenLog: (row: FlowerInventoryStockRow) => void;
 }) {
   const isCategory = section.rows.length > 1;
   const [expanded, setExpanded] = useState(false);
@@ -321,6 +351,7 @@ function InventoryFlowerCategoryDesktopGroup({
         isAllBranchesView={isAllBranchesView}
         isAdmin={isAdmin}
         onAdjust={onAdjust}
+        onOpenLog={onOpenLog}
         showColorVariant={false}
       />
     );
@@ -335,6 +366,7 @@ function InventoryFlowerCategoryDesktopGroup({
             rows={section.rows}
             expanded={expanded}
             onToggle={() => setExpanded((current) => !current)}
+            onOpenLog={onOpenLog}
           />
         </td>
       </tr>
@@ -346,6 +378,7 @@ function InventoryFlowerCategoryDesktopGroup({
               isAllBranchesView={isAllBranchesView}
               isAdmin={isAdmin}
               onAdjust={onAdjust}
+              onOpenLog={onOpenLog}
               showColorVariant
               nested
             />
@@ -360,6 +393,7 @@ function InventoryFlowerDesktopStockRow({
   isAllBranchesView,
   isAdmin,
   onAdjust,
+  onOpenLog,
   showColorVariant,
   nested = false,
 }: {
@@ -372,6 +406,7 @@ function InventoryFlowerDesktopStockRow({
     movementType: 'stock_in' | 'stock_out',
     quantity: number,
   ) => Promise<void>;
+  onOpenLog: (row: FlowerInventoryStockRow) => void;
   showColorVariant: boolean;
   nested?: boolean;
 }) {
@@ -381,11 +416,14 @@ function InventoryFlowerDesktopStockRow({
         <td className="px-3 py-2 whitespace-nowrap">{row.branch_name}</td>
       )}
       <td className="min-w-[10rem] px-3 py-2">
-        {showColorVariant ? (
-          <InventoryColorVariantLabel color={row.product_color} />
-        ) : (
-          <InventoryStockRowLabel name={row.product_name} color={row.product_color} />
-        )}
+        <button type="button" className="text-left hover:opacity-80" onClick={() => onOpenLog(row)}>
+          {showColorVariant ? (
+            <InventoryColorVariantLabel color={row.product_color} />
+          ) : (
+            <InventoryStockRowLabel name={row.product_name} color={row.product_color} />
+          )}
+          <span className="mt-0.5 block text-[11px] font-medium text-brand-accent">View log</span>
+        </button>
       </td>
       <td className={`px-3 py-2 font-semibold ${row.on_hand < 0 ? 'text-red-700' : ''}`}>{row.on_hand}</td>
       {isAdmin && !isAllBranchesView ? (
@@ -497,6 +535,9 @@ function StockAdjustControls({
       >
         Stock out
       </button>
+      <p className="basis-full text-[11px] text-brand-brown/60">
+        Sales deduct when the order is finished (walk-in on save). 7:00 PM catches finished leftovers only — not Not started drafts. Stock out is for waste or corrections only.
+      </p>
     </div>
   ) : (
     <div className="flex w-full flex-col gap-2">
@@ -544,6 +585,9 @@ function StockAdjustControls({
           Stock out
         </button>
       </div>
+      <p className="text-[11px] text-brand-brown/60">
+        Sales deduct when the order is finished (walk-in on save). 7:00 PM catches finished leftovers only — not Not started drafts. Stock out is for waste or corrections only.
+      </p>
     </div>
   );
 }
@@ -992,6 +1036,8 @@ function InventoryMovementCard({
 
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-brand-brown/65">
         <span>{formatInventoryMovementTimestamp(movement.created_at)}</span>
+        <span aria-hidden>·</span>
+        <span className="font-medium text-brand-brown/80">{formatInventoryMovementActor(movement)}</span>
         {orderId ? (
           <>
             <span aria-hidden>·</span>
@@ -1037,6 +1083,7 @@ function InventoryRecentMovementsPanel({
         movement.branch_name,
         INVENTORY_MOVEMENT_TYPE_LABELS[movement.movement_type] ?? movement.movement_type,
         movement.note,
+        movement.created_by_name,
         orderId,
         receiver,
         String(movement.quantity),
@@ -1134,6 +1181,17 @@ export default function FlowerInventoryPage() {
   const [billingSavingId, setBillingSavingId] = useState<string | null>(null);
   const [transferHistoryTab, setTransferHistoryTab] = useState<TransferHistoryTab>('confirmed');
   const [printTransferRequest, setPrintTransferRequest] = useState<FlowerTransferRequest | null>(null);
+  const [logRow, setLogRow] = useState<FlowerInventoryStockRow | null>(null);
+  const [stockOutConfirm, setStockOutConfirm] = useState<{
+    branchId: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    pendingSold: number;
+  } | null>(null);
+  const [stockOutConfirmBusy, setStockOutConfirmBusy] = useState(false);
+  const [forceDeductBusy, setForceDeductBusy] = useState(false);
+  const forceDeductLockRef = useRef(false);
 
   async function loadData() {
     const isFirstLoad = isFirstLoadRef.current;
@@ -1407,6 +1465,18 @@ export default function FlowerInventoryPage() {
     return String(Math.max(1, Number(digits)));
   }
 
+  async function applyStockAdjustment(
+    branchId: string,
+    productId: string,
+    movementType: 'stock_in' | 'stock_out',
+    quantity: number,
+  ) {
+    await adjustFlowerInventory({ branchId, productId, movementType, quantity });
+    setMessage(`${movementType === 'stock_in' ? 'Stock in' : 'Stock out'} recorded.`);
+    setErrorMessage('');
+    await loadData();
+  }
+
   async function handleAdjust(
     branchId: string,
     productId: string,
@@ -1414,12 +1484,55 @@ export default function FlowerInventoryPage() {
     quantity: number,
   ) {
     try {
-      await adjustFlowerInventory({ branchId, productId, movementType, quantity });
-      setMessage(`${movementType === 'stock_in' ? 'Stock in' : 'Stock out'} recorded.`);
-      setErrorMessage('');
-      await loadData();
+      if (movementType === 'stock_out') {
+        const todayKey = toManilaDateKeyFromDate();
+        const orders = await listFlowerOrders({
+          branchId,
+          scheduledFrom: todayKey,
+          scheduledTo: todayKey,
+        });
+        const pendingSold =
+          soldPendingDeductionByProductId(orders, todayKey, branchId).get(productId) ?? 0;
+
+        if (pendingSold > 0) {
+          const productName =
+            stockRows.find((row) => row.branch_id === branchId && row.product_id === productId)
+              ?.product_name ?? 'this item';
+          setStockOutConfirm({
+            branchId,
+            productId,
+            productName,
+            quantity,
+            pendingSold,
+          });
+          return;
+        }
+      }
+
+      await applyStockAdjustment(branchId, productId, movementType, quantity);
     } catch (error) {
       setErrorMessage(extractSupabaseErrorMessage(error, 'Adjustment failed.'));
+    }
+  }
+
+  async function confirmStockOutAnyway() {
+    if (!stockOutConfirm) {
+      return;
+    }
+
+    setStockOutConfirmBusy(true);
+    try {
+      await applyStockAdjustment(
+        stockOutConfirm.branchId,
+        stockOutConfirm.productId,
+        'stock_out',
+        stockOutConfirm.quantity,
+      );
+      setStockOutConfirm(null);
+    } catch (error) {
+      setErrorMessage(extractSupabaseErrorMessage(error, 'Adjustment failed.'));
+    } finally {
+      setStockOutConfirmBusy(false);
     }
   }
 
@@ -1617,8 +1730,8 @@ export default function FlowerInventoryPage() {
                 ? `Catalog totals across ${formatBranchListLabel()}. Select a branch to adjust stock.`
                 : 'Supply totals by category. Select a branch to stock in extras.'
               : stockKindTab === 'flower'
-                ? 'Catalog stock grouped by type with variants in order.'
-                : 'Stock in or out supply items for this branch.'
+                ? 'Catalog stock grouped by type with variants in order. Finished sales deduct on walk-in save or when marked done; 7:00 PM / Run order deduct now only catch finished leftovers. Use Stock out only for waste, damage, or corrections.'
+                : 'Stock in or out supply items for this branch. Finished sales deduct when completed; Stock out is for waste or corrections only.'
             : isAllBranchesView
               ? stockKindTab === 'flower'
                 ? 'Combined catalog totals across all branches.'
@@ -1628,6 +1741,43 @@ export default function FlowerInventoryPage() {
                 : 'View-only supply stock for this branch.'
         }
       />
+
+      {isAdmin ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            disabled={forceDeductBusy || INVENTORY_AUTO_DEDUCT_PAUSED}
+            onClick={async () => {
+              if (forceDeductBusy || forceDeductLockRef.current || INVENTORY_AUTO_DEDUCT_PAUSED) {
+                return;
+              }
+              forceDeductLockRef.current = true;
+              setForceDeductBusy(true);
+              setMessage('');
+              setErrorMessage('');
+              try {
+                const count = await forceRunInventoryDeductions();
+                await loadData();
+                if (count > 0) {
+                  setMessage(`Order deduct done — ${count} finished order(s) deducted.`);
+                } else {
+                  setMessage(
+                    'Checked — restored any wrongly deducted Not started/Ready drafts; no finished orders pending.',
+                  );
+                }
+              } catch (err) {
+                setErrorMessage(extractSupabaseErrorMessage(err, 'Order deduct failed.'));
+              } finally {
+                forceDeductLockRef.current = false;
+                setForceDeductBusy(false);
+              }
+            }}
+            className="rounded-xl bg-brand-brown px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark disabled:opacity-50"
+          >
+            {forceDeductBusy ? 'Deducting…' : 'Run order deduct now'}
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-4 inline-flex rounded-xl border border-brand-muted/50 bg-white p-1">
         <button
@@ -2169,6 +2319,7 @@ export default function FlowerInventoryPage() {
               : `Showing ${stockKindTab === 'flower' ? 'catalog' : MISC_PRODUCT_CATEGORY_LABELS[miscCategoryFilter].toLowerCase()} stock for ${selectedBranchName} (${totalUnitsOnHand} units on hand)${
                   stockKindTab === 'flower' ? ', grouped by product type' : ''
                 }.`}
+            {stockKindTab === 'flower' ? ' Tap a color to see that day’s stock in, stock out, and who did it.' : ' Tap an item to see its daily log.'}
             {isRefreshing ? ' · Updating…' : ''}
           </p>
 
@@ -2182,6 +2333,7 @@ export default function FlowerInventoryPage() {
                     isAllBranchesView={isAllBranchesView}
                     isAdmin={isAdmin}
                     onAdjust={handleAdjust}
+                    onOpenLog={setLogRow}
                   />
                 ))}
                 {stockByFlowerType.length === 0 ? (
@@ -2197,11 +2349,16 @@ export default function FlowerInventoryPage() {
                     key={isAllBranchesView ? row.product_id : `${row.branch_id}-${row.product_id}-card`}
                     className="flower-card p-4"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setLogRow(row)}
+                      className="flex w-full items-start justify-between gap-3 text-left"
+                    >
                       <div className="min-w-0 flex-1">
                         <InventoryMiscRowLabel name={row.product_name} />
                         <p className="mt-1 text-xs text-brand-brown/70">
                           {isAllBranchesView ? 'All branches total' : row.branch_name}
+                          <span className="text-brand-accent"> · tap for log</span>
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -2212,7 +2369,7 @@ export default function FlowerInventoryPage() {
                           {row.on_hand}
                         </p>
                       </div>
-                    </div>
+                    </button>
                     {isAdmin && !isAllBranchesView ? (
                       <div className="mt-4 border-t border-brand-muted/30 pt-4">
                         <StockAdjustControls
@@ -2268,6 +2425,7 @@ export default function FlowerInventoryPage() {
                         isAdmin={isAdmin}
                         stockTableColSpan={stockTableColSpan}
                         onAdjust={handleAdjust}
+                        onOpenLog={setLogRow}
                       />
                     ))}
                     {stockByFlowerType.length === 0 ? (
@@ -2289,7 +2447,10 @@ export default function FlowerInventoryPage() {
                           <td className="px-3 py-2 whitespace-nowrap">{row.branch_name}</td>
                         )}
                         <td className="min-w-[10rem] px-3 py-2">
-                          <InventoryMiscRowLabel name={row.product_name} />
+                          <button type="button" className="text-left hover:opacity-80" onClick={() => setLogRow(row)}>
+                            <InventoryMiscRowLabel name={row.product_name} />
+                            <span className="mt-0.5 block text-[11px] font-medium text-brand-accent">View log</span>
+                          </button>
                         </td>
                         <td className={`px-3 py-2 font-semibold ${row.on_hand < 0 ? 'text-red-700' : ''}`}>{row.on_hand}</td>
                         {isAdmin && !isAllBranchesView ? (
@@ -2342,6 +2503,37 @@ export default function FlowerInventoryPage() {
       ) : null}
 
       {printTransferRequest ? <FlowerBranchTransferPrintDocument request={printTransferRequest} /> : null}
+
+      {logRow ? (
+        <FlowerInventoryProductLogPanel
+          row={logRow}
+          branchId={isAllBranchesView ? undefined : logRow.branch_id}
+          showBranch={isAllBranchesView}
+          onClose={() => setLogRow(null)}
+        />
+      ) : null}
+
+      <FlowerConfirmDialog
+        open={Boolean(stockOutConfirm)}
+        title="Stock out while sales are pending?"
+        message={
+          stockOutConfirm
+            ? `${stockOutConfirm.productName} still has ${stockOutConfirm.pendingSold} sold stem(s) waiting to deduct. Stock out is only for waste, damage, or corrections — not for sales. If you continue, the sale deduct can still run and stock can go down twice.`
+            : ''
+        }
+        confirmLabel="Stock out anyway"
+        cancelLabel="Cancel"
+        destructive
+        busy={stockOutConfirmBusy}
+        onConfirm={() => {
+          void confirmStockOutAnyway();
+        }}
+        onCancel={() => {
+          if (!stockOutConfirmBusy) {
+            setStockOutConfirm(null);
+          }
+        }}
+      />
     </div>
   );
 }
