@@ -79,7 +79,7 @@ export default function FlowerLoginPage() {
         {isDemoMode ? (
           <div className="space-y-3">
             <p className="text-sm text-brand-brown/75">
-              Live demo of a multi-branch inventory, sales, and staff system. Pick a role to sign in. Catalog SKUs are placeholders — we map yours when you go live.
+              Live demo of a multi-branch flower shop. Pick a role to sign in. Sample stems and materials are already loaded.
             </p>
 
             <button

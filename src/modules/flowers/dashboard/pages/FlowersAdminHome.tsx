@@ -43,7 +43,7 @@ export default function FlowersAdminHome() {
       <FlowerPageHeader
         label={BRAND_NAME}
         title="Branch operations"
-        description={`Welcome, ${user?.display_name ?? 'Staff'}. Branches: ${formatBranchListLabel()}. Sample SKUs stand in for whatever you sell.`}
+        description={`Welcome, ${user?.display_name ?? 'Staff'}. Branches: ${formatBranchListLabel()}. Catalog is stems, fillers, wrappers, and gift items.`}
       />
 
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -175,7 +175,7 @@ export default function FlowerProductsPage() {
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
             placeholder={
-              catalogTab === 'flower' ? 'Product type (e.g. Staple, Core)' : 'Item name (e.g. Tape, Box)'
+              catalogTab === 'flower' ? 'Flower type (e.g. Local Rose, Lily)' : 'Item name (e.g. Kraft wrapper, Ferrero)'
             }
             className="flower-input"
           />

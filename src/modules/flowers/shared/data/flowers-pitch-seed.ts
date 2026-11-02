@@ -8,7 +8,7 @@ import type { FlowerSupplyTransfer } from '../types/flower-supply-transfer';
 import { toManilaDateKeyFromDate } from '../utils/flower-format';
 
 /** Bump when pitch sample data changes so existing browsers re-seed once. */
-export const FLOWER_PITCH_SEED_VERSION = 'v5';
+export const FLOWER_PITCH_SEED_VERSION = 'v6';
 
 function atManilaHour(base: Date, dayOffset: number, hour: number, minute = 0): Date {
   const dateKey = toManilaDateKeyFromDate(
@@ -71,7 +71,18 @@ function finalizeOrder(draft: OrderDraft): FlowerOrder {
   };
 }
 
+/** Keep the pitch calendar in November so leftover October demo data is not reused. */
+function pitchNow(now = new Date()): Date {
+  const key = toManilaDateKeyFromDate(now);
+  if (key.startsWith('2026-11')) {
+    return now;
+  }
+
+  return new Date('2026-11-03T10:15:00+08:00');
+}
+
 export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
+  now = pitchNow(now);
   const drafts: OrderDraft[] = [
     {
       id: 'ORD-DEMO-1001',
@@ -84,7 +95,7 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       claim_mode: 'pickup',
       wrapper_color: 'Kraft',
       greeting_card: 'Happy anniversary!',
-      special_instructions: 'Keep items sealed',
+      special_instructions: 'Keep stems in water until pickup',
       downpayment: 500,
       payment_mode: 'gcash',
       payment_reference: 'GC-88421',
@@ -92,13 +103,14 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       balance_paid: true,
       balance_payment_mode: 'cash',
       notes: 'Regular customer',
-      created_at: iso(now, -3, 10, 15),
+      created_at: iso(now, -2, 10, 15),
       created_by_id: 'user-staff-1',
       created_by_name: 'Staff North',
       inventory_deducted: true,
       items: [
-        { product_id: 'sku-staple-red', item_name: 'Staple (Red)', quantity: 24 },
-        { product_id: 'sku-addon-clear', item_name: 'Add-on (Clear)', quantity: 6 },
+        { product_id: 'sku-rose-red', item_name: 'Local Rose (Red)', quantity: 24 },
+        { product_id: 'sku-gypsophila-white', item_name: "Baby's Breath (White)", quantity: 6 },
+        { product_id: 'sku-wrapper-kraft', item_name: 'Kraft Wrapper (Kraft)', quantity: 1 },
       ],
     },
     {
@@ -126,8 +138,9 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       created_by_name: 'Staff Midtown',
       inventory_deducted: true,
       items: [
-        { product_id: 'sku-pack-large', item_name: 'Pack (Large)', quantity: 12 },
-        { product_id: 'sku-addon-white', item_name: "Add-on (White)", quantity: 8 },
+        { product_id: 'sku-lily-white', item_name: 'Lily (White)', quantity: 12 },
+        { product_id: 'sku-gypsophila-white', item_name: "Baby's Breath (White)", quantity: 8 },
+        { product_id: 'sku-wrapper-korean', item_name: 'Korean Wrapper (Pink)', quantity: 1 },
       ],
     },
     {
@@ -149,14 +162,15 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       balance_paid: true,
       balance_payment_mode: 'gcash',
       balance_payment_reference: 'GC-91088',
-      notes: 'Hospital delivery',
+      notes: 'Hospital get-well bouquet',
       created_at: iso(now, -2, 13, 5),
       created_by_id: 'user-admin',
       created_by_name: 'Demo Admin',
       inventory_deducted: true,
       items: [
-        { product_id: 'sku-core-std', item_name: 'Core (Standard)', quantity: 15 },
-        { product_id: 'sku-premium-gold', item_name: 'Premium (Gold)', quantity: 10 },
+        { product_id: 'sku-mum-white', item_name: 'Chrysanthemum (White)', quantity: 15 },
+        { product_id: 'sku-lily-pink', item_name: 'Lily (Pink)', quantity: 10 },
+        { product_id: 'sku-tissue-white', item_name: 'Tissue (White)', quantity: 2 },
       ],
     },
     {
@@ -182,8 +196,8 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       created_by_name: 'Staff North',
       inventory_deducted: false,
       items: [
-        { product_id: 'sku-pack-small', item_name: 'Pack (Small)', quantity: 12 },
-        { product_id: 'sku-addon-white', item_name: "Add-on (White)", quantity: 4 },
+        { product_id: 'sku-carnation-red', item_name: 'Carnation (Red)', quantity: 12 },
+        { product_id: 'sku-wrapper-kraft', item_name: 'Kraft Wrapper (Kraft)', quantity: 1 },
       ],
     },
     {
@@ -197,7 +211,7 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       claim_mode: 'pickup',
       wrapper_color: 'Black',
       greeting_card: 'Congrats on the promo!',
-      special_instructions: 'Add ribbon',
+      special_instructions: 'Add red satin ribbon',
       downpayment: 700,
       payment_mode: 'gcash',
       payment_reference: 'GC-77110',
@@ -209,8 +223,9 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       created_by_name: 'Staff Midtown',
       inventory_deducted: false,
       items: [
-        { product_id: 'sku-staple-blue', item_name: 'Staple (Blue)', quantity: 18 },
-        { product_id: 'sku-addon-clear', item_name: 'Add-on (Clear)', quantity: 5 },
+        { product_id: 'sku-rose-pink', item_name: 'Local Rose (Pink)', quantity: 18 },
+        { product_id: 'sku-statice-purple', item_name: 'Statice (Purple)', quantity: 5 },
+        { product_id: 'sku-ribbon-red', item_name: 'Satin Ribbon (Red)', quantity: 1 },
       ],
     },
     {
@@ -224,7 +239,7 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       claim_mode: 'pickup',
       wrapper_color: 'Red',
       greeting_card: 'I love you',
-      special_instructions: 'No baby\'s breath',
+      special_instructions: 'No baby\'s breath, Korean wrap',
       downpayment: 1000,
       payment_mode: 'bpi',
       payment_reference: 'BPI-44120',
@@ -236,8 +251,9 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       created_by_name: 'Staff North',
       inventory_deducted: false,
       items: [
-        { product_id: 'sku-staple-red', item_name: 'Staple (Red)', quantity: 36 },
-        { product_id: 'sku-premium-black', item_name: 'Premium (Black)', quantity: 4 },
+        { product_id: 'sku-rose-red', item_name: 'Local Rose (Red)', quantity: 36 },
+        { product_id: 'sku-lily-pink', item_name: 'Lily (Pink)', quantity: 4 },
+        { product_id: 'sku-wrapper-korean', item_name: 'Korean Wrapper (Pink)', quantity: 1 },
       ],
     },
     {
@@ -263,8 +279,9 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       created_by_name: 'Demo Admin',
       inventory_deducted: false,
       items: [
-        { product_id: 'sku-core-mixed', item_name: 'Core (Mixed)', quantity: 20 },
-        { product_id: 'sku-addon-clear', item_name: 'Add-on (Clear)', quantity: 6 },
+        { product_id: 'sku-mum-yellow', item_name: 'Chrysanthemum (Yellow)', quantity: 20 },
+        { product_id: 'sku-statice-purple', item_name: 'Statice (Purple)', quantity: 6 },
+        { product_id: 'sku-wrapper-kraft', item_name: 'Kraft Wrapper (Kraft)', quantity: 1 },
       ],
     },
     {
@@ -279,19 +296,20 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       wrapper_color: 'Blue',
       greeting_card: '',
       special_instructions: '',
-      downpayment: 0,
+      downpayment: 400,
       payment_mode: 'cash',
       payment_reference: '',
       total_amount: 1400,
       balance_paid: false,
-      notes: 'Pay in full at pickup',
+      notes: 'Balance due at pickup',
       created_at: iso(now, 0, 14, 20),
       created_by_id: 'user-staff-2',
       created_by_name: 'Staff Midtown',
       inventory_deducted: false,
       items: [
-        { product_id: 'sku-premium-gold', item_name: 'Premium (Gold)', quantity: 16 },
-        { product_id: 'sku-addon-white', item_name: "Add-on (White)", quantity: 5 },
+        { product_id: 'sku-rose-white', item_name: 'Local Rose (White)', quantity: 16 },
+        { product_id: 'sku-gypsophila-white', item_name: "Baby's Breath (White)", quantity: 5 },
+        { product_id: 'sku-choc-ferrero', item_name: 'Ferrero (Mixed)', quantity: 1 },
       ],
     },
     {
@@ -317,8 +335,9 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       created_by_name: 'Staff North',
       inventory_deducted: false,
       items: [
-        { product_id: 'sku-pack-small', item_name: 'Pack (Small)', quantity: 20 },
-        { product_id: 'sku-pack-large', item_name: 'Pack (Large)', quantity: 6 },
+        { product_id: 'sku-carnation-pink', item_name: 'Carnation (Pink)', quantity: 20 },
+        { product_id: 'sku-lily-white', item_name: 'Lily (White)', quantity: 6 },
+        { product_id: 'sku-ribbon-red', item_name: 'Satin Ribbon (Red)', quantity: 1 },
       ],
     },
     {
@@ -327,7 +346,7 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       branch_name: 'North Plaza',
       receiver: 'Cancelled Order',
       customer_social: '@temp.order',
-      scheduled_for: iso(now, -3, 13, 0),
+      scheduled_for: iso(now, -1, 13, 0),
       status: 'cancelled',
       claim_mode: 'pickup',
       wrapper_color: 'White',
@@ -338,12 +357,12 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       payment_reference: 'GC-CANCEL1',
       total_amount: 1200,
       balance_paid: false,
-      notes: 'Customer cancelled — DP refunded offline',
-      created_at: iso(now, -4, 10, 0),
+      notes: 'Customer cancelled, DP refunded offline',
+      created_at: iso(now, -2, 10, 0),
       created_by_id: 'user-staff-1',
       created_by_name: 'Staff North',
       inventory_deducted: false,
-      items: [{ product_id: 'sku-staple-blue', item_name: 'Staple (Blue)', quantity: 12 }],
+      items: [{ product_id: 'sku-rose-pink', item_name: 'Local Rose (Pink)', quantity: 12 }],
     },
     {
       id: 'ORD-DEMO-1011',
@@ -351,7 +370,7 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       branch_name: 'Midtown',
       receiver: 'Hannah Go',
       customer_social: '@hannah.go',
-      scheduled_for: iso(now, -4, 15, 30),
+      scheduled_for: iso(now, -2, 15, 30),
       status: 'picked_up',
       claim_mode: 'pickup',
       wrapper_color: 'Gold',
@@ -363,13 +382,13 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       total_amount: 1500,
       balance_paid: true,
       notes: 'Fully paid cash',
-      created_at: iso(now, -5, 9, 30),
+      created_at: iso(now, -2, 9, 30),
       created_by_id: 'user-staff-2',
       created_by_name: 'Staff Midtown',
       inventory_deducted: true,
       items: [
-        { product_id: 'sku-premium-black', item_name: 'Premium (Black)', quantity: 6 },
-        { product_id: 'sku-addon-clear', item_name: 'Add-on (Clear)', quantity: 8 },
+        { product_id: 'sku-lily-pink', item_name: 'Lily (Pink)', quantity: 6 },
+        { product_id: 'sku-statice-purple', item_name: 'Statice (Purple)', quantity: 8 },
       ],
     },
     {
@@ -378,7 +397,7 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       branch_name: 'South Market',
       receiver: 'Mark Villar',
       customer_social: '@markv',
-      scheduled_for: iso(now, -5, 12, 0),
+      scheduled_for: iso(now, -2, 12, 0),
       status: 'delivered',
       claim_mode: 'delivery',
       wrapper_color: 'Green',
@@ -391,14 +410,14 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       balance_paid: true,
       balance_payment_mode: 'gcash',
       balance_payment_reference: 'GC-BAL-33',
-      notes: 'DP cash, balance GCash',
-      created_at: iso(now, -6, 16, 0),
+      notes: 'DP cash, balance GCash. Cemetery stand for Nov 1.',
+      created_at: iso(now, -2, 16, 0),
       created_by_id: 'user-admin',
       created_by_name: 'Demo Admin',
       inventory_deducted: true,
       items: [
-        { product_id: 'sku-core-std', item_name: 'Core (Standard)', quantity: 12 },
-        { product_id: 'sku-premium-gold', item_name: 'Premium (Gold)', quantity: 8 },
+        { product_id: 'sku-mum-white', item_name: 'Chrysanthemum (White)', quantity: 12 },
+        { product_id: 'sku-rose-white', item_name: 'Local Rose (White)', quantity: 8 },
       ],
     },
     {
@@ -412,7 +431,7 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       claim_mode: 'pickup',
       wrapper_color: 'Ivory',
       greeting_card: 'With love',
-      special_instructions: 'Premium finish',
+      special_instructions: 'Korean wrap, extra tissue',
       downpayment: 1200,
       payment_mode: 'gcash',
       payment_reference: 'GC-99001',
@@ -424,9 +443,11 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       created_by_name: 'Staff North',
       inventory_deducted: false,
       items: [
-        { product_id: 'sku-staple-blue', item_name: 'Staple (Blue)', quantity: 40 },
-        { product_id: 'sku-pack-large', item_name: 'Pack (Large)', quantity: 10 },
-        { product_id: 'sku-addon-white', item_name: "Add-on (White)", quantity: 12 },
+        { product_id: 'sku-rose-pink', item_name: 'Local Rose (Pink)', quantity: 40 },
+        { product_id: 'sku-lily-white', item_name: 'Lily (White)', quantity: 10 },
+        { product_id: 'sku-gypsophila-white', item_name: "Baby's Breath (White)", quantity: 12 },
+        { product_id: 'sku-wrapper-korean', item_name: 'Korean Wrapper (Pink)', quantity: 3 },
+        { product_id: 'sku-tissue-white', item_name: 'Tissue (White)', quantity: 6 },
       ],
     },
     {
@@ -439,22 +460,24 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       status: 'picked_up',
       claim_mode: 'pickup',
       wrapper_color: 'Kraft',
-      greeting_card: 'Welcome to the team',
-      special_instructions: '3 small packs',
+      greeting_card: 'For the family',
+      special_instructions: 'Cemetery stands, extra tissue',
       downpayment: 2000,
       payment_mode: 'eastwest',
       payment_reference: 'EW-CORP-1',
       total_amount: 3600,
       balance_paid: true,
       balance_payment_mode: 'cash',
-      notes: 'Corporate account',
-      created_at: iso(now, -3, 8, 0),
+      notes: 'All Saints cemetery order',
+      created_at: iso(now, -2, 8, 0),
       created_by_id: 'user-staff-2',
       created_by_name: 'Staff Midtown',
       inventory_deducted: true,
       items: [
-        { product_id: 'sku-core-mixed', item_name: 'Core (Mixed)', quantity: 24 },
-        { product_id: 'sku-pack-small', item_name: 'Pack (Small)', quantity: 18 },
+        { product_id: 'sku-mum-yellow', item_name: 'Chrysanthemum (Yellow)', quantity: 24 },
+        { product_id: 'sku-carnation-red', item_name: 'Carnation (Red)', quantity: 18 },
+        { product_id: 'sku-wrapper-kraft', item_name: 'Kraft Wrapper (Kraft)', quantity: 3 },
+        { product_id: 'sku-tissue-white', item_name: 'Tissue (White)', quantity: 6 },
       ],
     },
     {
@@ -480,8 +503,9 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
       created_by_name: 'Staff North',
       inventory_deducted: false,
       items: [
-        { product_id: 'sku-core-std', item_name: 'Core (Standard)', quantity: 8 },
-        { product_id: 'sku-addon-clear', item_name: 'Add-on (Clear)', quantity: 4 },
+        { product_id: 'sku-rose-pink', item_name: 'Local Rose (Pink)', quantity: 8 },
+        { product_id: 'sku-gypsophila-white', item_name: "Baby's Breath (White)", quantity: 4 },
+        { product_id: 'sku-choc-ferrero', item_name: 'Ferrero (Mixed)', quantity: 1 },
       ],
     },
   ];
@@ -490,6 +514,7 @@ export function buildFlowerOrdersPitchSeed(now = new Date()): FlowerOrder[] {
 }
 
 export function buildFlowerStaffExpensesPitchSeed(now = new Date()): FlowerStaffExpense[] {
+  now = pitchNow(now);
   return [
     {
       id: 'exp-demo-1',
@@ -510,7 +535,7 @@ export function buildFlowerStaffExpensesPitchSeed(now = new Date()): FlowerStaff
       branch_id: 'branch-north',
       branch_name: 'North Plaza',
       amount: 350,
-      description: 'Packing supplies restock',
+      description: 'Korean wrapper and ribbon restock',
       expense_date: dateKey(now, 0),
       payment_mode: 'gcash',
       created_at: iso(now, 0, 11, 20),
@@ -534,7 +559,7 @@ export function buildFlowerStaffExpensesPitchSeed(now = new Date()): FlowerStaff
       branch_id: 'branch-midtown',
       branch_name: 'Midtown',
       amount: 500,
-      description: 'Emergency packing supplies',
+      description: 'Emergency tissue and kraft wrap',
       expense_date: dateKey(now, -1),
       payment_mode: 'gcash',
       created_at: iso(now, -1, 15, 10),
@@ -558,7 +583,7 @@ export function buildFlowerStaffExpensesPitchSeed(now = new Date()): FlowerStaff
       branch_id: 'branch-midtown',
       branch_name: 'Midtown',
       amount: 95,
-      description: 'Packing tape',
+      description: 'Floral tape and pins',
       expense_date: dateKey(now, -2),
       payment_mode: 'cash',
       created_at: iso(now, -2, 12, 0),
@@ -571,9 +596,9 @@ export function buildFlowerStaffExpensesPitchSeed(now = new Date()): FlowerStaff
       branch_name: 'North Plaza',
       amount: 400,
       description: 'Ice packs for cold storage',
-      expense_date: dateKey(now, -3),
+      expense_date: dateKey(now, -2),
       payment_mode: 'gcash',
-      created_at: iso(now, -3, 8, 30),
+      created_at: iso(now, -2, 8, 30),
     },
     {
       id: 'exp-demo-8',
@@ -583,23 +608,24 @@ export function buildFlowerStaffExpensesPitchSeed(now = new Date()): FlowerStaff
       branch_name: 'Midtown',
       amount: 275,
       description: 'Card stock & pens',
-      expense_date: dateKey(now, -4),
+      expense_date: dateKey(now, -2),
       payment_mode: 'cash',
-      created_at: iso(now, -4, 14, 15),
+      created_at: iso(now, -2, 14, 15),
     },
   ];
 }
 
 export function buildFlowerSupplierCostsPitchSeed(now = new Date()): FlowerSupplierCost[] {
+  now = pitchNow(now);
   return [
     {
       id: 'supcost-demo-1',
       branch_id: 'branch-north',
       branch_name: 'North Plaza',
-      product_id: 'sku-staple-red',
-      product_name: 'Staple (Red)',
+      product_id: 'sku-rose-red',
+      product_name: 'Local Rose (Red)',
       amount: 5400,
-      description: 'Weekly staple delivery — Central Supplier',
+      description: 'Weekly local rose delivery from Dangwa',
       cost_date: dateKey(now, -1),
       created_by_id: 'user-admin',
       created_by_name: 'Demo Admin',
@@ -609,10 +635,10 @@ export function buildFlowerSupplierCostsPitchSeed(now = new Date()): FlowerSuppl
       id: 'supcost-demo-2',
       branch_id: 'branch-north',
       branch_name: 'North Plaza',
-      product_id: 'sku-pack-large',
-      product_name: 'Pack (Large)',
+      product_id: 'sku-lily-white',
+      product_name: 'Lily (White)',
       amount: 3000,
-      description: 'Imported premium crate',
+      description: 'Lily crate from Dangwa',
       cost_date: dateKey(now, -2),
       created_by_id: 'user-admin',
       created_by_name: 'Demo Admin',
@@ -635,52 +661,53 @@ export function buildFlowerSupplierCostsPitchSeed(now = new Date()): FlowerSuppl
       id: 'supcost-demo-4',
       branch_id: 'branch-south',
       branch_name: 'South Market',
-      product_id: 'sku-core-std',
-      product_name: 'Core (Standard)',
+      product_id: 'sku-mum-white',
+      product_name: 'Chrysanthemum (White)',
       amount: 1600,
-      description: 'Core restock',
-      cost_date: dateKey(now, -3),
+      description: 'Chrysanthemum restock for cemetery orders',
+      cost_date: dateKey(now, -2),
       created_by_id: 'user-admin',
       created_by_name: 'Demo Admin',
-      created_at: iso(now, -3, 9, 0),
+      created_at: iso(now, -2, 9, 0),
     },
   ];
 }
 
 export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventoryMovementRow[] {
+  now = pitchNow(now);
   const rows: Array<Omit<FlowerInventoryMovementRow, 'created_by_id' | 'created_by_name'>> = [
     {
       id: 1,
       branch_id: 'branch-north',
       branch_name: 'North Plaza',
-      product_id: 'sku-staple-red',
-      product_name: 'Staple (Red)',
+      product_id: 'sku-rose-red',
+      product_name: 'Local Rose (Red)',
       movement_type: 'stock_in',
       quantity: 100,
       previous_on_hand: 20,
       new_on_hand: 120,
-      note: 'Supplier delivery — Central Supplier',
+      note: 'Supplier delivery from Dangwa',
       created_at: iso(now, -1, 7, 45),
     },
     {
       id: 2,
       branch_id: 'branch-north',
       branch_name: 'North Plaza',
-      product_id: 'sku-pack-large',
-      product_name: 'Pack (Large)',
+      product_id: 'sku-lily-white',
+      product_name: 'Lily (White)',
       movement_type: 'stock_in',
       quantity: 40,
       previous_on_hand: 10,
       new_on_hand: 50,
-      note: 'Imported premium crate',
+      note: 'Lily crate from Dangwa',
       created_at: iso(now, -2, 8, 10),
     },
     {
       id: 3,
       branch_id: 'branch-north',
       branch_name: 'North Plaza',
-      product_id: 'sku-staple-red',
-      product_name: 'Staple (Red)',
+      product_id: 'sku-rose-red',
+      product_name: 'Local Rose (Red)',
       movement_type: 'transfer_out',
       quantity: 20,
       previous_on_hand: 120,
@@ -692,8 +719,8 @@ export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventory
       id: 4,
       branch_id: 'branch-midtown',
       branch_name: 'Midtown',
-      product_id: 'sku-staple-red',
-      product_name: 'Staple (Red)',
+      product_id: 'sku-rose-red',
+      product_name: 'Local Rose (Red)',
       movement_type: 'transfer_in',
       quantity: 20,
       previous_on_hand: 70,
@@ -705,34 +732,34 @@ export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventory
       id: 5,
       branch_id: 'branch-midtown',
       branch_name: 'Midtown',
-      product_id: 'sku-core-mixed',
-      product_name: 'Core (Mixed)',
+      product_id: 'sku-mum-yellow',
+      product_name: 'Chrysanthemum (Yellow)',
       movement_type: 'stock_out',
       quantity: 5,
       previous_on_hand: 50,
       new_on_hand: 45,
-      note: 'Damaged units discarded',
+      note: 'Wilted stems discarded',
       created_at: iso(now, -2, 16, 0),
     },
     {
       id: 6,
       branch_id: 'branch-south',
       branch_name: 'South Market',
-      product_id: 'sku-core-std',
-      product_name: 'Core (Standard)',
+      product_id: 'sku-mum-white',
+      product_name: 'Chrysanthemum (White)',
       movement_type: 'stock_in',
       quantity: 30,
       previous_on_hand: 0,
       new_on_hand: 30,
-      note: 'South restock',
-      created_at: iso(now, -3, 9, 15),
+      note: 'South Market chrysanthemum restock',
+      created_at: iso(now, -2, 9, 15),
     },
     {
       id: 7,
       branch_id: 'branch-north',
       branch_name: 'North Plaza',
-      product_id: 'sku-staple-red',
-      product_name: 'Staple (Red)',
+      product_id: 'sku-rose-red',
+      product_name: 'Local Rose (Red)',
       movement_type: 'order_deduct',
       quantity: 24,
       previous_on_hand: 100,
@@ -744,8 +771,8 @@ export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventory
       id: 8,
       branch_id: 'branch-midtown',
       branch_name: 'Midtown',
-      product_id: 'sku-pack-large',
-      product_name: 'Pack (Large)',
+      product_id: 'sku-lily-white',
+      product_name: 'Lily (White)',
       movement_type: 'order_deduct',
       quantity: 12,
       previous_on_hand: 40,
@@ -757,8 +784,8 @@ export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventory
       id: 9,
       branch_id: 'branch-south',
       branch_name: 'South Market',
-      product_id: 'sku-premium-gold',
-      product_name: 'Premium (Gold)',
+      product_id: 'sku-rose-white',
+      product_name: 'Local Rose (White)',
       movement_type: 'transfer_in',
       quantity: 15,
       previous_on_hand: 25,
@@ -770,8 +797,8 @@ export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventory
       id: 10,
       branch_id: 'branch-north',
       branch_name: 'North Plaza',
-      product_id: 'sku-premium-gold',
-      product_name: 'Premium (Gold)',
+      product_id: 'sku-rose-white',
+      product_name: 'Local Rose (White)',
       movement_type: 'transfer_out',
       quantity: 15,
       previous_on_hand: 70,
@@ -789,6 +816,7 @@ export function buildFlowerMovementsPitchSeed(now = new Date()): FlowerInventory
 }
 
 export function buildFlowerTransferRequestsPitchSeed(now = new Date()): FlowerTransferRequest[] {
+  now = pitchNow(now);
   return [
     {
       id: 'xfer-demo-pending',
@@ -799,11 +827,11 @@ export function buildFlowerTransferRequestsPitchSeed(now = new Date()): FlowerTr
       items: [
         {
           id: 'xfer-demo-pending-item-1',
-          product_id: 'sku-premium-black',
-          product_name: 'Premium',
+          product_id: 'sku-lily-pink',
+          product_name: 'Lily',
           product_kind: 'flower',
-          product_color: 'Black',
-          product_flower_type: 'Premium',
+          product_color: 'Pink',
+          product_flower_type: 'Lily',
           quantity: 8,
         },
       ],
@@ -827,11 +855,11 @@ export function buildFlowerTransferRequestsPitchSeed(now = new Date()): FlowerTr
       items: [
         {
           id: 'xfer-demo-confirmed-item-1',
-          product_id: 'sku-staple-red',
-          product_name: 'Staple',
+          product_id: 'sku-rose-red',
+          product_name: 'Local Rose',
           product_kind: 'flower',
           product_color: 'Red',
-          product_flower_type: 'Staple',
+          product_flower_type: 'Local Rose',
           quantity: 20,
         },
       ],
@@ -855,11 +883,11 @@ export function buildFlowerTransferRequestsPitchSeed(now = new Date()): FlowerTr
       items: [
         {
           id: 'xfer-demo-unpaid-item-1',
-          product_id: 'sku-core-mixed',
-          product_name: 'Core',
+          product_id: 'sku-mum-yellow',
+          product_name: 'Chrysanthemum',
           product_kind: 'flower',
-          product_color: 'Mixed',
-          product_flower_type: 'Core',
+          product_color: 'Yellow',
+          product_flower_type: 'Chrysanthemum',
           quantity: 12,
         },
       ],
@@ -878,13 +906,14 @@ export function buildFlowerTransferRequestsPitchSeed(now = new Date()): FlowerTr
 }
 
 export function buildFlowerSupplyTransfersPitchSeed(now = new Date()): FlowerSupplyTransfer[] {
+  now = pitchNow(now);
   return [
     {
       id: 'supply-demo-1',
       transfer_type: 'new_arrival',
       arrived_at_branch_id: 'branch-north',
       arrived_at_branch_name: 'North Plaza',
-      supplier: 'Central Supplier',
+      supplier: 'Dangwa',
       amount_paid_supplies: 8500,
       amount_paid_transpo: 400,
       original_arrival_date: dateKey(now, -2),
@@ -894,17 +923,17 @@ export function buildFlowerSupplyTransfersPitchSeed(now = new Date()): FlowerSup
       to_branch_name: 'South Market',
       prepared_by: 'Demo Admin',
       received_by: 'South opener',
-      flower_liability: 570,
-      total_liability: 970,
+      flower_liability: 720,
+      total_liability: 1120,
       items: [
         {
           id: 'supply-demo-1-line-1',
-          product_id: 'sku-premium-gold',
-          product_name: 'Premium',
-          product_color: 'Gold',
+          product_id: 'sku-rose-white',
+          product_name: 'Local Rose',
+          product_color: 'White',
           quantity: 15,
-          unit_cost: 38,
-          line_liability: 570,
+          unit_cost: 48,
+          line_liability: 720,
         },
       ],
       created_by_id: 'user-admin',
@@ -926,22 +955,22 @@ export function buildFlowerSupplyTransfersPitchSeed(now = new Date()): FlowerSup
       to_branch_name: 'Midtown',
       prepared_by: 'Staff North',
       received_by: 'Staff Midtown',
-      flower_liability: 900,
-      total_liability: 900,
+      flower_liability: 560,
+      total_liability: 560,
       items: [
         {
           id: 'supply-demo-2-line-1',
-          product_id: 'sku-pack-small',
-          product_name: 'Pack',
-          product_color: 'Small',
+          product_id: 'sku-carnation-red',
+          product_name: 'Carnation',
+          product_color: 'Red',
           quantity: 20,
-          unit_cost: 35,
-          line_liability: 700,
+          unit_cost: 18,
+          line_liability: 360,
         },
         {
           id: 'supply-demo-2-line-2',
-          product_id: 'sku-addon-white',
-          product_name: "Add-on (White)",
+          product_id: 'sku-gypsophila-white',
+          product_name: "Baby's Breath",
           product_color: 'White',
           quantity: 8,
           unit_cost: 25,
@@ -950,7 +979,7 @@ export function buildFlowerSupplyTransfersPitchSeed(now = new Date()): FlowerSup
       ],
       created_by_id: 'user-admin',
       created_by_name: 'Demo Admin',
-      created_at: iso(now, -3, 15, 0),
+      created_at: iso(now, -2, 15, 0),
     },
   ];
 }

@@ -1,7 +1,7 @@
 # Plaza Retail — Multi-branch operations demo
 
-Generic **multi-branch inventory, sales, and staff** demo for pitching to shops with 2+ branches — hardware, pharmacy, uniforms, feed, appliances, groceries, bakeries, flower shops, and similar.  
-This repo is separate from any client production deployment. Sample SKUs are placeholders; the catalog is configured per prospect.
+Generic **multi-branch flower shop** demo: stems, fillers, wrappers, and gift items across North Plaza, Midtown, and South Market.  
+This repo is separate from any client production deployment. Sample catalog is roses, lilies, chrysanthemums, carnations, and packing materials.
 
 Landing/marketing pages are out of scope for now — this is the live back office only.
 
@@ -70,7 +70,7 @@ Data never leaves the browser. There is no Supabase project, login, or sync in t
 
 ## Pitch script (5 minutes)
 
-1. Log in as Admin — this is the **engine**, not a flower app. Catalog SKUs are stand-ins.
+1. Log in as Admin — orders, stock, and supplies for a three-branch flower shop.
 2. Orders — create order with downpayment + balance due; mark balance paid with an explicit mode.
 3. Inventory — stock by branch + transfer request + packing slip.
 4. Daily count — submit actuals (reports stay locked until this is done).

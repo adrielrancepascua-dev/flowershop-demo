@@ -32,7 +32,7 @@ import { normalizeFlowerProductKind } from '../../../modules/flowers/shared/util
 import { formatInventoryOrderDeductNote, formatInventoryOrderVoidNote, parseInventoryMovementOrderId } from '../../../modules/flowers/shared/utils/flower-format';
 import { getStoredFlowerSession } from '../../../lib/auth/flower-auth.service';
 
-const INVENTORY_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_v3';
+const INVENTORY_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_v4';
 const MOVEMENTS_STORAGE_KEY = 'bloom_branch_demo_flower_inventory_movements_v2';
 const MOVEMENTS_SEEDED_KEY = `bloom_branch_demo_flower_inventory_movements_seeded_${FLOWER_PITCH_SEED_VERSION}`;
 const TRANSFER_REQUESTS_STORAGE_KEY = 'bloom_branch_demo_flower_transfer_requests_v2';
